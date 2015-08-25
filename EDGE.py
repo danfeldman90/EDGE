@@ -343,7 +343,7 @@ def convertSptype(spT):
 
 #----------------------------------------------DEPENDENT FUNCTIONS-----------------------------------------------
 # A function is considered dependent if it utilizes either the above independent functions, or the classes below.
-def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9]):
+def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1):
     """
     Creates a plot of a model and the observations for a given target.
     
@@ -442,21 +442,22 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
         if 'total' in modkeys:
             plt.plot(model.data['wl'], model.data['total'], c='k', linewidth=2.0, label='Combined Model')
         # Now, the relevant meta-data:
-        plt.figtext(0.60,0.88,'Eps = '+ str(model.eps), color='#010000', size='9')
-        plt.figtext(0.80,0.88,'Alpha = '+ str(model.alpha), color='#010000', size='9')
-        plt.figtext(0.60,0.82,'Amax = '+ str(model.amax), color='#010000', size='9')
-        plt.figtext(0.60,0.85,'Rin = '+ str(model.rin), color='#010000', size='9')
-        plt.figtext(0.80,0.85,'Rout = '+ str(model.rdisk), color='#010000', size='9')
-        plt.figtext(0.60,0.79,'Altinh = '+ str(model.wallH), color='#010000', size='9')
-        plt.figtext(0.80,0.82,'Mdot = '+ str(model.mdot), color='#010000', size='9')
-        # If we have an outer wall height:
-        try:
-            plt.figtext(0.80,0.79,'AltinhOuter = '+ str(model.owallH), color='#010000', size='9')
-        except AttributeError:
-            plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.temp), color='#010000', size='9')
-        else:
-            plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.itemp), color='#010000', size='9')
-            plt.figtext(0.80,0.76,'OWall Temp = '+ str(model.temp), color='#010000', size='9')
+        if params:
+            plt.figtext(0.60,0.88,'Eps = '+ str(model.eps), color='#010000', size='9')
+            plt.figtext(0.80,0.88,'Alpha = '+ str(model.alpha), color='#010000', size='9')
+            plt.figtext(0.60,0.82,'Amax = '+ str(model.amax), color='#010000', size='9')
+            plt.figtext(0.60,0.85,'Rin = '+ str(model.rin), color='#010000', size='9')
+            plt.figtext(0.80,0.85,'Rout = '+ str(model.rdisk), color='#010000', size='9')
+            plt.figtext(0.60,0.79,'Altinh = '+ str(model.wallH), color='#010000', size='9')
+            plt.figtext(0.80,0.82,'Mdot = '+ str(model.mdot), color='#010000', size='9')
+            # If we have an outer wall height:
+            try:
+                plt.figtext(0.80,0.79,'AltinhOuter = '+ str(model.owallH), color='#010000', size='9')
+            except AttributeError:
+                plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.temp), color='#010000', size='9')
+            else:
+                plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.itemp), color='#010000', size='9')
+                plt.figtext(0.80,0.76,'OWall Temp = '+ str(model.temp), color='#010000', size='9')
         
     # Lastly, the remaining parameters to plotting (mostly aesthetics):
     plt.xscale('log')
