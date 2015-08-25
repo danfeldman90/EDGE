@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
-# Last updated: 8/18/15 by Dan
+# Last updated: 8/25/15 by Dan
 
 #-------------------------------------------IMPORT RELEVANT MODELS-------------------------------------------
 import numpy as np
@@ -387,16 +387,16 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
         # If an upper limit only:
         if pkey in obs.ulim:
             plt.plot(obs.photometry[pkey]['wl'], obs.photometry[pkey]['lFl'], 'v', \
-                     color=colors[colkeys[pind+len(speckeys)]], markersize=7, label=pkey)
+                     color=colors[colkeys[pind+len(speckeys)]], markersize=7, label=pkey, zorder=pind+10)
         # If not an upper limit, plot as normal:
         else:
             if 'err' not in obs.photometry[pkey].keys():
                 plt.plot(obs.photometry[pkey]['wl'], obs.photometry[pkey]['lFl'], 'o', mfc='w', mec=colors[colkeys[pind+len(speckeys)]], mew=1.0,\
-                         markersize=7, label=pkey)
+                         markersize=7, label=pkey, zorder=pind+10)
             else:
                 plt.errorbar(obs.photometry[pkey]['wl'], obs.photometry[pkey]['lFl'], yerr=obs.photometry[pkey]['err'], \
                              mec=colors[colkeys[pind+len(speckeys)]], fmt='o', mfc='w', mew=1.0, markersize=7, \
-                             ecolor=colors[colkeys[pind+len(speckeys)]], elinewidth=2.0, capsize=2.0, label=pkey)
+                             ecolor=colors[colkeys[pind+len(speckeys)]], elinewidth=2.0, capsize=2.0, label=pkey, zorder=pind+10)
     
     # Now, the model (if a model supplied):
     if model != None:
@@ -437,6 +437,8 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
             plt.plot(model.data['wl'], model.data['dust'], ls='--', c='#F80303', linewidth=2.0, label='Opt. Thin Dust')
         if 'scatt' in modkeys:
             plt.plot(model.data['wl'], model.data['scatt'], ls='--', c='#7A6F6F', linewidth=2.0, label='Scattered Light')
+        if 'shockMod' in modkeys:
+            plt.plot(model.data['shockMod']['wl'], model.data['shockMod']['lFl'], c=colors['j'], linewidth=2.0, zorder=1, label='Shock Model')
         if 'total' in modkeys:
             plt.plot(model.data['wl'], model.data['total'], c='k', linewidth=2.0, label='Combined Model')
         # Now, the relevant meta-data:
@@ -1322,6 +1324,9 @@ class TTS_Model(object):
         dust_high: BOOLEAN -- if 1 (True), will look for a 4 digit valued dust file.
         altinh: FLOAT/INT -- if not None, will multiply inner wall flux by that amount.
         save: BOOLEAN -- if 1 (True), will print out the components to a .dat file.
+        
+        OUTPUT
+        A boolean value, depending on whether it encountered any key errors or not.
         """
         
         # Add the components to the total flux, checking each component along the way:
@@ -1423,6 +1428,54 @@ class TTS_Model(object):
             headerStr  = headerStr[0:-2]
             filestring = '%s%s_%s.dat' % (self.dpath, self.name, numCheck(self.jobn, high=self.high))
             np.savetxt(filestring, outputTable, fmt='%.3e', delimiter=', ', header=headerStr, comments='#')
+        
+        return
+    
+    def blueExcessModel(self, shockPath):
+        """
+        Adding the excess emission in the optical and near-UV from accretion shock models to the total emission. The
+        models are taken from Laura Ingleby's models.
+        
+        NOTE: This section is not very generalized, and needs work. - Dan
+        
+        INPUT
+        shockPath: Where the accretion shock model data is located.
+        """
+        
+        # Start by loading in the shock model table:
+        if self.name.endswith('pt'):
+            shockTable = np.loadtxt(shockPath+self.name[:-2]+'.dat', skiprows=1)
+        else:
+            shockTable = np.loadtxt(shockPath+self.name+'.dat', skiprows=1)
+        
+        # Convert everything to the correct units:
+        shockTable[:,1] *= shockTable[:,0]      # Make the flux be in erg s-1 cm-2
+        shockTable[:,2] *= shockTable[:,0]      # Same units for WTTS component
+        shockTable[:,3] *= shockTable[:,0]      # Same units for shock component
+        shockTable[:,0] *= 1e-4                 # Wavelength in microns
+        
+        # Need to interpolate the model onto the appropriate wavelength grid:
+        wlgrid = np.where(np.logical_and(self.data['wl'] <= shockTable[-1,0], self.data['wl'] >= shockTable[0,0]))[0]
+        totalInterp    = np.interp(shockTable[:,0], self.data['wl'][wlgrid], self.data['total'][wlgrid])
+        
+        # Add to the total data, and then plop back into the full grid.
+        excessTotal        = totalInterp + shockTable[:,2] + shockTable[:,3]
+        oldWavelength      = self.data['wl'].copy()     # Save a copy for later
+        self.data['wl']    = np.append(self.data['wl'], shockTable[:,0])
+        self.data['total'] = np.append(self.data['total'], excessTotal)
+        sortInd = np.argsort(self.data['wl'])
+        self.data['wl']    = self.data['wl'][sortInd]
+        self.data['total'] = self.data['total'][sortInd]
+        
+        # Now all of the other components are not on the same grid. Let's interpolate all of them:
+        for key in self.data.keys():
+            if key == 'total' or key == 'wl':
+                pass
+            else:
+                self.data[key] = np.interp(self.data['wl'], oldWavelength, self.data[key])
+        
+        # Lastly, save the full model:
+        self.data['shockMod']  = {'wl': shockTable[:,0], 'lFl': shockTable[:,1]}
         
         return
 
