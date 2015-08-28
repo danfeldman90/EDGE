@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
-# Last updated: 8/25/15 by Dan
+# Last updated: 8/28/15 by Dan
 
 #-------------------------------------------IMPORT RELEVANT MODELS-------------------------------------------
 import numpy as np
@@ -437,8 +437,9 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
             plt.plot(model.data['wl'], model.data['dust'], ls='--', c='#F80303', linewidth=2.0, label='Opt. Thin Dust')
         if 'scatt' in modkeys:
             plt.plot(model.data['wl'], model.data['scatt'], ls='--', c='#7A6F6F', linewidth=2.0, label='Scattered Light')
-        if 'shockMod' in modkeys:
-            plt.plot(model.data['shockMod']['wl'], model.data['shockMod']['lFl'], c=colors['j'], linewidth=2.0, zorder=1, label='Shock Model')
+        if 'shock' in modkeys:
+            plt.plot(model.data['WTTS']['wl'], model.data['WTTS']['lFl'], c=colors['e'], linewidth=2.0, zorder=1, label='WTTS Photosphere')
+            plt.plot(model.data['shock']['wl'], model.data['shock']['lFl'], c=colors['j'], linewidth=2.0, zorder=2, label='Shock Model')
         if 'total' in modkeys:
             plt.plot(model.data['wl'], model.data['total'], c='k', linewidth=2.0, label='Combined Model')
         # Now, the relevant meta-data:
@@ -1437,7 +1438,9 @@ class TTS_Model(object):
         Adding the excess emission in the optical and near-UV from accretion shock models to the total emission. The
         models are taken from Laura Ingleby's models.
         
-        NOTE: This section is not very generalized, and needs work. - Dan
+        NOTE1: For this to work, you need to set phot=0 during the calculation of the total model component!
+        
+        NOTE2: This section is not very generalized, and needs work. - Dan
         
         INPUT
         shockPath: Where the accretion shock model data is located.
@@ -1455,6 +1458,26 @@ class TTS_Model(object):
         shockTable[:,3] *= shockTable[:,0]      # Same units for shock component
         shockTable[:,0] *= 1e-4                 # Wavelength in microns
         
+        # Check if any bad (super low) data points in WTTS component, and then remove them:
+        lowVals = np.where(shockTable[:,2] < 1e-15)[0]
+        if len(lowVals) != 0:
+            shockTable = np.delete(shockTable, lowVals, 0)
+        
+        # Define and add the accretion shock data:
+        shockWL        = shockTable[:,0].copy() # I might make cuts later, so want to copy now
+        shockFlux      = shockTable[:,1].copy()
+        shockMod       = shockTable[:,2].copy()
+        self.data['shock']  = {'wl': shockWL, 'lFl': shockFlux}
+        self.data['WTTS']   = {'wl': shockWL, 'lFl': shockMod}
+        
+        # Check for NaNs in the data, and if they exist, remove them:
+        if np.isnan(np.sum(shockTable[:,2])):
+            badVals    = np.where(np.isnan(shockTable[:,2]))
+            shockTable = np.delete(shockTable, badVals, 0)
+        if np.isnan(np.sum(shockTable[:,3])):
+            badVals2   = np.where(np.isnan(shockTable[:,3]))
+            shockTable = np.delete(shockTable, badVals2, 0)
+            
         # Need to interpolate the model onto the appropriate wavelength grid:
         wlgrid = np.where(np.logical_and(self.data['wl'] <= shockTable[-1,0], self.data['wl'] >= shockTable[0,0]))[0]
         totalInterp    = np.interp(shockTable[:,0], self.data['wl'][wlgrid], self.data['total'][wlgrid])
@@ -1468,15 +1491,33 @@ class TTS_Model(object):
         self.data['wl']    = self.data['wl'][sortInd]
         self.data['total'] = self.data['total'][sortInd]
         
+        # Doublecheck for the existence of NaNs in your model:
+        if np.isnan(np.sum(self.data['total'])):
+            print('BLUEEXCESSMODEL: WARNING! There are NaNs in the total component of your model.')
+        
         # Now all of the other components are not on the same grid. Let's interpolate all of them:
         for key in self.data.keys():
-            if key == 'total' or key == 'wl':
+            if key == 'total' or key == 'wl' or key == 'shock' or key == 'WTTS':
                 pass
             else:
                 self.data[key] = np.interp(self.data['wl'], oldWavelength, self.data[key])
+        try:
+            self.newIWall = np.interp(self.data['wl'], oldWavelength, self.newIWall)
+        except AttributeError:
+            pass
+        try:
+            self.newOWall = np.interp(self.data['wl'], oldWavelength, self.newOWall)
+        except AttributeError:
+            pass
         
-        # Lastly, save the full model:
-        self.data['shockMod']  = {'wl': shockTable[:,0], 'lFl': shockTable[:,1]}
+        # Normalize the Kenyon and Hartmann photosphere to the WTTS photosphere for rough consistency:
+        normFactor = np.max(shockTable[-100:,2])
+        photAnchor = self.data['phot'][np.where(self.data['wl'] == shockTable[-1,0])[0]]
+        self.data['phot'] *= normFactor / photAnchor
+        
+        # If we use this model, we need to add the KH photosphere for wavelengths greater than a micron:
+        WTTS_ind = np.where(self.data['wl'] > shockTable[-1,0])[0]
+        self.data['total'][WTTS_ind] += self.data['phot'][WTTS_ind] 
         
         return
 
@@ -1687,6 +1728,7 @@ class PTD_Model(TTS_Model):
         HDUdata.close()
         return
     
+    @keyErrHandle
     def calc_total(self, phot=1, wall=1, disk=1, owall=1, dust=0, verbose=1, dust_high=0, altInner=None, altOuter=None, save=0):
         """
         Calculates the total flux for our object (likely to be used for plotting and/or analysis). Once calculated, it
