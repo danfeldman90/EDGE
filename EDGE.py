@@ -128,6 +128,29 @@ def deci_to_time(ra=None, dec=None):
     
     return new_ra, new_dec
 
+def linearInterp(x0, x1, x2, y1, y2, y1err, y2err):
+    """
+    Linearly interpolates between two values assuming the y values have errors.
+    
+    INPUTS
+    x0: The x value of where you wish to interpolate.
+    x1: The lower x value bound.
+    x2: The upper x value bound.
+    y1: The y value corresponding to x1.
+    y2: The y value corresponding to x2.
+    y1err: The error in the y1 value.
+    y2err: The error in the y2 value.
+    
+    OUTPUTS
+    y0: The interpolated y value corresponding to x0.
+    yerr: The error in y0.
+    """
+    
+    y0   = y1 + (y2-y1) * ((x0-x1)/(x2-x1))
+    yerr = math.sqrt(2*(y1err**2) + (y2err**2))
+    
+    return y0, yerr
+
 def convertFreq(value):
     """
     Convert a frequency value in s-1 to wavelength in microns. Should also work with arrays.
@@ -396,7 +419,7 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
             else:
                 plt.errorbar(obs.photometry[pkey]['wl'], obs.photometry[pkey]['lFl'], yerr=obs.photometry[pkey]['err'], \
                              mec=colors[colkeys[pind+len(speckeys)]], fmt='o', mfc='w', mew=1.0, markersize=7, \
-                             ecolor=colors[colkeys[pind+len(speckeys)]], elinewidth=2.0, capsize=2.0, label=pkey, zorder=pind+10)
+                             ecolor=colors[colkeys[pind+len(speckeys)]], elinewidth=2.0, capsize=3.0, label=pkey, zorder=pind+10)
     
     # Now, the model (if a model supplied):
     if model != None:
@@ -439,7 +462,8 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
             plt.plot(model.data['wl'], model.data['scatt'], ls='--', c='#7A6F6F', linewidth=2.0, label='Scattered Light')
         if 'shock' in modkeys:
             plt.plot(model.data['WTTS']['wl'], model.data['WTTS']['lFl'], c=colors['e'], linewidth=2.0, zorder=1, label='WTTS Photosphere')
-            plt.plot(model.data['shock']['wl'], model.data['shock']['lFl'], c=colors['j'], linewidth=2.0, zorder=2, label='Shock Model')
+            plt.plot(model.data['shock']['wl'], model.data['shock']['lFl'], c=colors['j'], linewidth=2.0, zorder=2, label='MagE Spectrum')
+            plt.plot(model.data['shockLong']['wl'], model.data['shockLong']['lFl'], c=colors['s'], linewidth=2.0, zorder=2, label='Shock Model')
         if 'total' in modkeys:
             plt.plot(model.data['wl'], model.data['total'], c='k', linewidth=2.0, label='Combined Model')
         # Now, the relevant meta-data:
@@ -1449,8 +1473,12 @@ class TTS_Model(object):
         # Start by loading in the shock model table:
         if self.name.endswith('pt'):
             shockTable = np.loadtxt(shockPath+self.name[:-2]+'.dat', skiprows=1)
+            shockLong  = np.loadtxt(shockPath+'shock_'+self.name[:-2]+'.dat')
+            self.data['shockLong'] = {'wl': shockLong[:,0]*1e-4, 'lFl': shockLong[:,1]*shockLong[:,0]}
         else:
             shockTable = np.loadtxt(shockPath+self.name+'.dat', skiprows=1)
+            shockLong  = np.loadtxt(shockPath+'shock_'+self.name+'.dat')
+            self.data['shockLong'] = {'wl': shockLong[:,0]*1e-4, 'lFl': shockLong[:,1]*shockLong[:,0]}
         
         # Convert everything to the correct units:
         shockTable[:,1] *= shockTable[:,0]      # Make the flux be in erg s-1 cm-2
@@ -1481,6 +1509,8 @@ class TTS_Model(object):
         # Need to interpolate the model onto the appropriate wavelength grid:
         wlgrid = np.where(np.logical_and(self.data['wl'] <= shockTable[-1,0], self.data['wl'] >= shockTable[0,0]))[0]
         totalInterp    = np.interp(shockTable[:,0], self.data['wl'][wlgrid], self.data['total'][wlgrid])
+        # Now, take the wlgrid out of the original arrays:
+        self.data['total'][wlgrid] = np.nan
         
         # Add to the total data, and then plop back into the full grid.
         excessTotal        = totalInterp + shockTable[:,2] + shockTable[:,3]
@@ -1491,13 +1521,18 @@ class TTS_Model(object):
         self.data['wl']    = self.data['wl'][sortInd]
         self.data['total'] = self.data['total'][sortInd]
         
+        # Now I need to add the shock model for past 1 micron...sigh. Sorry for the weird repetition.
+        wlgrid2 = np.where(np.logical_and(self.data['wl'] <= shockLong[-1,0]*1e-4, self.data['wl'] >= shockTable[-1,0]))[0]
+        secondInterp   = np.interp(self.data['wl'][wlgrid2], shockLong[:,0]*1e-4, shockLong[:,1]*shockLong[:,0])
+        self.data['total'][wlgrid2] += secondInterp
+        
         # Doublecheck for the existence of NaNs in your model:
         if np.isnan(np.sum(self.data['total'])):
             print('BLUEEXCESSMODEL: WARNING! There are NaNs in the total component of your model.')
         
         # Now all of the other components are not on the same grid. Let's interpolate all of them:
         for key in self.data.keys():
-            if key == 'total' or key == 'wl' or key == 'shock' or key == 'WTTS':
+            if key == 'total' or key == 'wl' or key == 'shock' or key == 'WTTS' or key == 'shockLong':
                 pass
             else:
                 self.data[key] = np.interp(self.data['wl'], oldWavelength, self.data[key])
@@ -2014,6 +2049,52 @@ class TTS_Obs(object):
         f               = open(picklepath + outname, 'wb')
         cPickle.dump(self, f)
         f.close()
+        return
+    
+    def SPEX_norm(self, spexFile, normlFl, normWL=1.22, scope='SPEX', saveErr=0):
+        """
+        Normalizes SPEX spectra for the object and then saves it into the object.
+        
+        INPUTS
+        spexFile: The .fits filename containing the data. This will likely require the path as well.
+        normlFl: The flux value corresponding to the normalization wavelength.
+        normWL: The wavelength (in microns) where you want to normalize the data. Default is J band.
+        saveErr: BOOLEAN -- if True (1), will save the errors into the object.
+        
+        OUTPUT
+        No formal output. The function will save the normalized spectrum into the object.
+        """
+        
+        # First, let's load in the file and fix the flux units:
+        spexHDU = fits.open(spexFile)
+        if len(np.where(spexHDU[0].data[0,:] < 0.0)[0]):
+            raise ValueError('SPEX_NORM: The SPEX wavelength has negative values. Likely bad data!')
+        spexHDU[0].data[1,:] *= spexHDU[0].data[0,:]*1e4    # wl in microns, but flux is angstrom^-1
+        
+        # Now we find out if/where the normalization wavelength and flux exist in the data:
+        normInd = np.where(spexHDU[0].data[0,:] >= normWL)[0][0]    # Is equal to WL or rounds down to it
+        
+        # If the normalization wavelength is in between two indices, interpolate the flux:
+        if spexHDU[0].data[0,normInd] != normWL:
+            # Make sure no NaNs:
+            if np.isnan(spexHDU[0].data[1,normInd]) or np.isnan(spexHDU[0].data[1,normInd-1]):
+                raise ValueError('SPEX_NORM: The SPEX flux is NaN at the normalization wavelength!')
+            normVal, normErr = (linearInterp(normWL, spexHDU[0].data[0,normInd-1], spexHDU[0].data[0,normInd],
+                                             spexHDU[0].data[1,normInd-1], spexHDU[0].data[1,normInd], 
+                                             spexHDU[0].data[2,normInd-1], spexHDU[0].data[2,normInd]))
+        else:
+            if np.isnan(spexHDU[0].data[1,normInd]):
+                raise ValueError('SPEX_NORM: The SPEX flux is NaN at the normalization wavelength!')
+            normVal = spexHDU[0].data[1,normInd]
+            normErr = spexHDU[0].data[2,normInd]
+        
+        # Now we can normalize all the flux and then save it in the object:
+        normFlux = (spexHDU[0].data[1,:] / normVal) * normlFl
+        if saveErr:
+            self.add_spectra(scope, spexHDU[0].data[0,:], normFlux, spec_err=spexHDU[0].data[2,:])
+        else:
+            self.add_spectra(scope, spexHDU[0].data[0,:], normFlux)
+        
         return
 
 class Red_Obs(TTS_Obs):
