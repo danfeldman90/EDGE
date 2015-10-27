@@ -1122,7 +1122,7 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
     
     return
 
-def model_rchi2(objname, model, path, weight='default'):
+def model_rchi2(objname, model, path, obsNeglect=[], weight='default'):
     """
     Calculates a reduced chi-squared goodness of fit.
     
@@ -1130,6 +1130,8 @@ def model_rchi2(objname, model, path, weight='default'):
     objname: The name of the object to match for observational data.
     model: The model to test. Must be an instance of TTS_Model(), with a calculated total.
     path: The path containing the observations.
+    obsNeglect: A list of all the observations keys that you don't wish to be considered.
+    weight: The weight option you'd like to use for your chi2 calculation.
     
     OUTPUT
     rchi_sq: The value for the reduced chi-squared test on the model.
@@ -1143,8 +1145,8 @@ def model_rchi2(objname, model, path, weight='default'):
     flux        = np.array([], dtype=float)
     # Build the observations flux and wavelength vectors:
     for obsKey in objectObs.photometry.keys():
-        if obsKey == 'DCT' or obsKey == 'DCT_Raw' or obsKey == 'DCT Raw' or obsKey == 'MagE':
-            continue                            # Skip DCT Data and MagE
+        if obsKey in obsNeglect:
+            continue                            # Skip any data you want to neglect
         if obsKey in objectObs.ulim:
             continue                            # Skip upper limits
         wavelength = np.append(wavelength, objectObs.photometry[obsKey]['wl'])
