@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
-# Last updated: 8/28/15 by Dan
+# Last updated: 10/27/15 by Dan
 
 #-------------------------------------------IMPORT RELEVANT MODELS-------------------------------------------
 import numpy as np
@@ -10,6 +10,7 @@ from astropy.io import fits
 import scipy.interpolate as sinterp
 #from matplotlib.backends.backend_pdf import PdfPages
 import os
+import itertools
 import math
 import cPickle
 import pdb
@@ -29,6 +30,7 @@ edgepath        = '/Users/danfeldman/Python_Code/EDGE/'
 datapath        = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/Models/CVSO109PT2/'
 #figurepath      = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/Look_SEDs/CVSO107/'
 figurepath      = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/Models/Full_CVSO_Grid/CVSO58_sil/'
+shockpath       = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/ob1bspectra/'
 
 #---------------------------------------------INDEPENDENT FUNCTIONS----------------------------------------------
 # A function is considered independent if it does not reference any other function or class in this module.
@@ -366,7 +368,7 @@ def convertSptype(spT):
 
 #----------------------------------------------DEPENDENT FUNCTIONS-----------------------------------------------
 # A function is considered dependent if it utilizes either the above independent functions, or the classes below.
-def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1):
+def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1, public=0):
     """
     Creates a plot of a model and the observations for a given target.
     
@@ -420,69 +422,120 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
                 plt.errorbar(obs.photometry[pkey]['wl'], obs.photometry[pkey]['lFl'], yerr=obs.photometry[pkey]['err'], \
                              mec=colors[colkeys[pind+len(speckeys)]], fmt='o', mfc='w', mew=1.0, markersize=7, \
                              ecolor=colors[colkeys[pind+len(speckeys)]], elinewidth=2.0, capsize=3.0, label=pkey, zorder=pind+10)
-    
-    # Now, the model (if a model supplied):
-    if model != None:
-        modkeys         = model.data.keys()
-        if 'phot' in modkeys:
-            plt.plot(model.data['wl'], model.data['phot'], ls='--', c='b', linewidth=2.0, label='Photosphere')
-        if 'owall' in modkeys:
-            try:
-                plt.plot(model.data['wl'], model.newIWall, ls='--', c='#53EB3B', linewidth=2.0, label='Inner Wall')
-            except AttributeError:
-                if 'iwall' in modkeys:
-                    plt.plot(model.data['wl'], model.data['iwall'], ls='--', c='#53EB3B', linewidth=2.0, label='Inner Wall')
-        else:
-            try:
-                plt.plot(model.data['wl'], model.newIWall, ls='--', c='#53EB3B', linewidth=2.0, label='Wall')
-            except AttributeError:
-                if 'iwall' in modkeys:
-                    plt.plot(model.data['wl'], model.data['iwall'], ls='--', c='#53EB3B', linewidth=2.0, label='Wall')
-        if diskcomb:
-            try:
-                diskflux     = model.newOwall + model.data['disk']
-            except AttributeError:
-                try:
-                    diskflux = model.data['owall'] + model.data['disk']
-                except KeyError:
-                    print 'LOOK: Error, tried to combine outer wall and disk components but one component is missing!'
-                else:    
-                    plt.plot(model.data['wl'], diskflux, ls='--', c='#8B0A1E', linewidth=2.0, label='Outer Disk')
-        else:
-            try:
-                plt.plot(model.data['wl'], model.newOWall, ls='--', c='#E9B021', linewidth=2.0, label='Outer Wall')
-            except AttributeError:
+    # Publication style?
+    if public:
+        # Now, the model (if a model supplied):
+        if model != None:
+            modkeys         = model.data.keys()
+            if 'phot' in modkeys:
+                plt.plot(model.data['wl'], model.data['phot'], ls='--', c='b', linewidth=2.0, label='Photosphere')
+            # Will be combining the inner/outer walls with the disk emission component:
+            if 'dust' in modkeys:
                 if 'owall' in modkeys:
-                    plt.plot(model.data['wl'], model.data['owall'], ls='--', c='#E9B021', linewidth=2.0, label='Outer Wall')
-            if 'disk' in modkeys:
-                plt.plot(model.data['wl'], model.data['disk'], ls='--', c='#8B0A1E', linewidth=2.0, label='Disk')
-        if 'dust' in modkeys:
-            plt.plot(model.data['wl'], model.data['dust'], ls='--', c='#F80303', linewidth=2.0, label='Opt. Thin Dust')
-        if 'scatt' in modkeys:
-            plt.plot(model.data['wl'], model.data['scatt'], ls='--', c='#7A6F6F', linewidth=2.0, label='Scattered Light')
-        if 'shock' in modkeys:
-            plt.plot(model.data['WTTS']['wl'], model.data['WTTS']['lFl'], c=colors['e'], linewidth=2.0, zorder=1, label='WTTS Photosphere')
-            plt.plot(model.data['shock']['wl'], model.data['shock']['lFl'], c=colors['j'], linewidth=2.0, zorder=2, label='MagE Spectrum')
-            plt.plot(model.data['shockLong']['wl'], model.data['shockLong']['lFl'], c=colors['s'], linewidth=2.0, zorder=2, label='Shock Model')
-        if 'total' in modkeys:
-            plt.plot(model.data['wl'], model.data['total'], c='k', linewidth=2.0, label='Combined Model')
-        # Now, the relevant meta-data:
-        if params:
-            plt.figtext(0.60,0.88,'Eps = '+ str(model.eps), color='#010000', size='9')
-            plt.figtext(0.80,0.88,'Alpha = '+ str(model.alpha), color='#010000', size='9')
-            plt.figtext(0.60,0.82,'Amax = '+ str(model.amax), color='#010000', size='9')
-            plt.figtext(0.60,0.85,'Rin = '+ str(model.rin), color='#010000', size='9')
-            plt.figtext(0.80,0.85,'Rout = '+ str(model.rdisk), color='#010000', size='9')
-            plt.figtext(0.60,0.79,'Altinh = '+ str(model.wallH), color='#010000', size='9')
-            plt.figtext(0.80,0.82,'Mdot = '+ str(model.mdot), color='#010000', size='9')
-            # If we have an outer wall height:
-            try:
-                plt.figtext(0.80,0.79,'AltinhOuter = '+ str(model.owallH), color='#010000', size='9')
-            except AttributeError:
-                plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.temp), color='#010000', size='9')
+                    if 'newIWall' in model.__dict__:
+                        if 'newOWall' in model.__dict__:
+                            diskflux = model.newIWall + model.newOWall + model.data['disk'] + model.data['dust']
+                        else:
+                            diskflux = model.newIWall + model.data['owall'] + model.data['disk'] + model.data['dust']
+                    else:
+                        if 'newOWall' in model.__dict__:
+                            diskflux = model.data['iwall'] + model.newOWall + model.data['disk'] + model.data['dust']
+                        else:
+                            diskflux = model.data['iwall'] + model.data['owall'] + model.data['disk'] + model.data['dust']
+                else:
+                    if 'newIWall' in model.__dict__:
+                        diskflux = model.newIWall + model.data['disk'] + model.data['dust']
+                    else:
+                        diskflux = model.data['iwall'] + model.data['disk'] + model.data['dust']
             else:
-                plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.itemp), color='#010000', size='9')
-                plt.figtext(0.80,0.76,'OWall Temp = '+ str(model.temp), color='#010000', size='9')
+                if 'owall' in modkeys:
+                    if 'newIWall' in model.__dict__:
+                        if 'newOWall' in model.__dict__:
+                            diskflux = model.newIWall + model.newOWall + model.data['disk']
+                        else:
+                            diskflux = model.newIWall + model.data['owall'] + model.data['disk']
+                    else:
+                        if 'newOWall' in model.__dict__:
+                            diskflux = model.data['iwall'] + model.newOWall + model.data['disk']
+                        else:
+                            diskflux = model.data['iwall'] + model.data['owall'] + model.data['disk']
+                else:
+                    if 'newIWall' in model.__dict__:
+                        diskflux = model.newIWall + model.data['disk']
+                    else:
+                        diskflux = model.data['iwall'] + model.data['disk']
+            plt.plot(model.data['wl'], diskflux, ls='--', c='#8B0A1E', linewidth=2.0, label='Disk')
+            if 'scatt' in modkeys:
+                plt.plot(model.data['wl'], model.data['scatt'], ls='--', c='#7A6F6F', linewidth=2.0, label='Scattered Light')
+            if 'shock' in modkeys:
+                plt.plot(model.data['WTTS']['wl'], model.data['WTTS']['lFl'], c='b', linewidth=2.0, zorder=1, label='WTTS Photosphere')
+                plt.plot(model.data['shock']['wl'], model.data['shock']['lFl'], c=colors['j'], linewidth=2.0, zorder=2, label='MagE')
+                plt.plot(model.data['shockLong']['wl'], model.data['shockLong']['lFl'], c=colors['s'], linewidth=2.0, zorder=2, label='Shock Model')
+            if 'total' in modkeys:
+                plt.plot(model.data['wl'], model.data['total'], c='k', linewidth=2.0, label='Combined Model')
+    else:
+        # Now, the model (if a model supplied):
+        if model != None:
+            modkeys         = model.data.keys()
+            if 'phot' in modkeys:
+                plt.plot(model.data['wl'], model.data['phot'], ls='--', c='b', linewidth=2.0, label='Photosphere')
+            if 'owall' in modkeys:
+                try:
+                    plt.plot(model.data['wl'], model.newIWall, ls='--', c='#53EB3B', linewidth=2.0, label='Inner Wall')
+                except AttributeError:
+                    if 'iwall' in modkeys:
+                        plt.plot(model.data['wl'], model.data['iwall'], ls='--', c='#53EB3B', linewidth=2.0, label='Inner Wall')
+            else:
+                try:
+                    plt.plot(model.data['wl'], model.newIWall, ls='--', c='#53EB3B', linewidth=2.0, label='Wall')
+                except AttributeError:
+                    if 'iwall' in modkeys:
+                        plt.plot(model.data['wl'], model.data['iwall'], ls='--', c='#53EB3B', linewidth=2.0, label='Wall')
+            if diskcomb:
+                try:
+                    diskflux     = model.newOwall + model.data['disk']
+                except AttributeError:
+                    try:
+                        diskflux = model.data['owall'] + model.data['disk']
+                    except KeyError:
+                        print 'LOOK: Error, tried to combine outer wall and disk components but one component is missing!'
+                    else:    
+                        plt.plot(model.data['wl'], diskflux, ls='--', c='#8B0A1E', linewidth=2.0, label='Outer Disk')
+            else:
+                try:
+                    plt.plot(model.data['wl'], model.newOWall, ls='--', c='#E9B021', linewidth=2.0, label='Outer Wall')
+                except AttributeError:
+                    if 'owall' in modkeys:
+                        plt.plot(model.data['wl'], model.data['owall'], ls='--', c='#E9B021', linewidth=2.0, label='Outer Wall')
+                if 'disk' in modkeys:
+                    plt.plot(model.data['wl'], model.data['disk'], ls='--', c='#8B0A1E', linewidth=2.0, label='Disk')
+            if 'dust' in modkeys:
+                plt.plot(model.data['wl'], model.data['dust'], ls='--', c='#F80303', linewidth=2.0, label='Opt. Thin Dust')
+            if 'scatt' in modkeys:
+                plt.plot(model.data['wl'], model.data['scatt'], ls='--', c='#7A6F6F', linewidth=2.0, label='Scattered Light')
+            if 'shock' in modkeys:
+                plt.plot(model.data['WTTS']['wl'], model.data['WTTS']['lFl'], c='b', linewidth=2.0, zorder=1, label='WTTS Photosphere')
+                plt.plot(model.data['shock']['wl'], model.data['shock']['lFl'], c=colors['j'], linewidth=2.0, zorder=2, label='MagE')
+                plt.plot(model.data['shockLong']['wl'], model.data['shockLong']['lFl'], c=colors['s'], linewidth=2.0, zorder=2, label='Shock Model')
+            if 'total' in modkeys:
+                plt.plot(model.data['wl'], model.data['total'], c='k', linewidth=2.0, label='Combined Model')
+        # Now, the relevant meta-data:
+    if params:
+        plt.figtext(0.60,0.88,'Eps = '+ str(model.eps), color='#010000', size='9')
+        plt.figtext(0.80,0.88,'Alpha = '+ str(model.alpha), color='#010000', size='9')
+        plt.figtext(0.60,0.82,'Amax = '+ str(model.amax), color='#010000', size='9')
+        plt.figtext(0.60,0.85,'Rin = '+ str(model.rin), color='#010000', size='9')
+        plt.figtext(0.80,0.85,'Rout = '+ str(model.rdisk), color='#010000', size='9')
+        plt.figtext(0.60,0.79,'Altinh = '+ str(model.wallH), color='#010000', size='9')
+        plt.figtext(0.80,0.82,'Mdot = '+ str(model.mdot), color='#010000', size='9')
+        # If we have an outer wall height:
+        try:
+            plt.figtext(0.80,0.79,'AltinhOuter = '+ str(model.owallH), color='#010000', size='9')
+        except AttributeError:
+            plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.temp), color='#010000', size='9')
+        else:
+            plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.itemp), color='#010000', size='9')
+            plt.figtext(0.80,0.76,'OWall Temp = '+ str(model.temp), color='#010000', size='9')
         
     # Lastly, the remaining parameters to plotting (mostly aesthetics):
     plt.xscale('log')
@@ -1069,7 +1122,7 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
     
     return
 
-def model_rchi2(objname, model, path):
+def model_rchi2(objname, model, path, weight='default'):
     """
     Calculates a reduced chi-squared goodness of fit.
     
@@ -1090,8 +1143,8 @@ def model_rchi2(objname, model, path):
     flux        = np.array([], dtype=float)
     # Build the observations flux and wavelength vectors:
     for obsKey in objectObs.photometry.keys():
-        if obsKey == 'DCT' or obsKey == 'DCT_Raw' or obsKey == 'DCT Raw':
-            continue                            # Skip DCT Data
+        if obsKey == 'DCT' or obsKey == 'DCT_Raw' or obsKey == 'DCT Raw' or obsKey == 'MagE':
+            continue                            # Skip DCT Data and MagE
         if obsKey in objectObs.ulim:
             continue                            # Skip upper limits
         wavelength = np.append(wavelength, objectObs.photometry[obsKey]['wl'])
@@ -1112,11 +1165,16 @@ def model_rchi2(objname, model, path):
     
     # The tough part -- figuring out the proper weights. Let's take a stab:
     weights     = np.ones(len(wavelength))      # Start with all ones
-    weights[wavelength <= 8.5] = 25             # Some weight to early phot/spec data
-    weights[wavelength >= 22]  = 60             # More weight to outer piece of SED
-    
-    #weights[wavelength <= 22]  = 75            # These weights good for opt. thin dust comparisons
-    #weights[wavelength <= 1] = 1
+    if weight == 'default':
+        weights[wavelength <= 8.5] = 25         # Some weight to early phot/spec data
+        weights[wavelength >= 22.] = 60         # More weight to outer piece of SED
+    elif weight == 'twoWall':
+        weights[wavelength >= 22.]  = 40        # More weight to outer piece of SED
+        weights[wavelength <= 22.]  = 30        # These weights good for opt. thin dust comparisons
+    elif weight == 'outerOnly':
+        weights[wavelength >= 22.] = 60         # Only weighting the outer region of SED
+    else:
+        raise IOError('MODEL_RCHI2: Invalid option for Chi2 weights!')
     
     # Calculate the reduced chi-squared value for the model:
     chi_arr     = (flux - modelFlux) * weights / flux
@@ -1184,6 +1242,98 @@ def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
     lum = 10.0 ** ((-Mbol+4.74) / 2.5)
     
     return float(Teff), lum
+
+def normalize(dataDict, normWL, normlFl, errorArr=None):
+    """
+    Normalizes a given spectrum of data to the provided normalization wavelength and flux values. Optionally
+    normalizes an associated error array.
+    
+    INPUTS
+    dataDict: The dictionary containing the data to normalize. Will have 'wl' and 'lFl' keys.
+    normWL: The wavelength (in same unit as data's wl, typically microns) at which to normalize.
+    normlFl: The flux value we are normalizing to at the given normalization wavelength.
+    errorArr: (Optional) The array of errors associated with the flux in dataDict.
+    
+    OUTPUT
+    normFlux: The normalized flux array.
+    """
+    
+    # Find out if/where the normalization wavelength and flux exist in the data:
+    normInd = np.where(dataDict['wl'] >= normWL)[0][0]
+    
+    # If the normalization wavelength is between two indices, interpolate the flux:
+    if dataDict['wl'][normInd] != normWL:
+        # Make sure no NaNs:
+        if np.isnan(dataDict['lFl'][normInd]) or np.isnan(dataDict['lFl'][normInd-1]):
+            raise ValueError('NORMALIZE: The flux is NaN at the normalization wavelength!')
+        if errorArr is not None:
+            normVal, normErr = (linearInterp(normWL, dataDict['wl'][normInd-1], dataDict['wl'][normInd],
+                                             dataDict['lFl'][normInd-1], dataDict['lFl'][normInd],
+                                             errorArr[normInd-1], errorArr[normInd]))
+        else:
+            normVal, normErr = (linearInterp(normWL, dataDict['wl'][normInd-1], dataDict['wl'][normInd],
+                                             dataDict['lFl'][normInd-1], dataDict['lFl'][normInd], 0.0, 0.0))
+    else:
+        if np.isnan(dataDict['lFl'][normInd]):
+            raise ValueError('NORMALIZE: The flux is NaN at the normalization wavelength!')
+        normVal = dataDict['lFl'][normInd]
+        if errorArr is not None:
+            normErr = errorArr[normInd]
+        else:
+            normErr = 0.0
+    
+    # Now we normalize the flux:
+    normFlux = (dataDict['lFl'] / normVal) * normlFl
+    
+    # Normalize the error???
+    
+    return normFlux
+
+def twoWallCombine(name, jobMain, wallNumRange, altinhRange=range(1,5), dpath=datapath, high=0, blueExcess=0):
+    """
+    For a given object, test out all the best combination of two inner walls for a full disk.
+    
+    """
+    
+    # Open up a file to print the results to:
+    outputF   = open(dpath+name+'_two_wall_results.txt', 'w')
+    outputF.write('JobMain = ' + str(jobMain) + '\n\n')
+    outputF.write('Inner Wall Num, Outer Wall Num, Inner Wall Altinh, Outer Wall Altinh, Reduced Chi2\n')
+    
+    # Loop over all the walls and altinh values and calculate the chi2 value. Do not repeat any combinations:
+    for wallnums in itertools.combinations(wallNumRange,2):
+        print('Up to wall numbers %s,%s' % wallnums)
+        for alts in itertools.product(altinhRange,altinhRange):
+            # Initialize the "main model", which is the one containing the non-wall components:
+            modelMain = PTD_Model(name, jobMain, dpath=dpath, high=high)        # PTD model despite actually a full disk
+            modelMain.dataInit(jobw=wallNumRange[0], wallHigh=high, verbose=0)  # Initialization, don't worry about the wall
+            
+            # Load in and replace the "inner wall" with the first wall:
+            wall1 = TTS_Model(name, wallnums[0], dpath=dpath, high=high)
+            wall1.dataInit(verbose=0)
+            modelMain.data['iwall'] = wall1.data['iwall']
+            
+            # Load in and replace the "outer wall" with the second wall:
+            wall2 = TTS_Model(name, wallnums[1], dpath=dpath, high=high)
+            wall2.dataInit(verbose=0)
+            modelMain.data['owall'] = wall2.data['iwall']
+            
+            # Run calc_total with the altinh values:
+            if blueExcess:
+                modelMain.calc_total(verbose=0, altInner=alts[0], altOuter=alts[1], phot=0)
+                modelMain.blueExcessModel()                                 # If there's a shock model
+            else:
+                modelMain.calc_total(verbose=0, altInner=alts[0], altOuter=alts[1])
+            # Calculate the reduced chi2 value:
+            chi2 = str(model_rchi2(name, modelMain, dpath))
+            
+            # Enter relevant values
+            outputF.write(str(wallnums[0])+', '+str(wallnums[1])+', '+str(alts[0])+', '+str(alts[1])+', '+chi2+'\n')
+    
+    # Now that all the values are calculated and added to the file, close it out:
+    outputF.close()
+    
+    return
 
 #---------------------------------------------------CLASSES------------------------------------------------------
 class TTS_Model(object):
@@ -1283,12 +1433,15 @@ class TTS_Model(object):
         HDUlist.close()
         return
     
-    def dataInit(self):
+    def dataInit(self, verbose=1):
         """
         Initialize data attributes for this object using nested dictionaries:
         wl is the wavelength (corresponding to all three flux arrays). Phot is the stellar photosphere emission.
         iWall is the flux from the inner wall. Disk is the emission from the angle file. Scatt is the scattered
         light emission. Loads in self-extinction array if available.
+        
+        INPUTS:
+        verbose: BOOLEAN -- if 1 (True), will print out warnings about missing components.
         """
         
         stringnum    = numCheck(self.jobn, high=self.high)
@@ -1311,15 +1464,18 @@ class TTS_Model(object):
             if 'PHOTAXIS' in header.keys():
                 self.data['phot'] = HDUdata[0].data[header['PHOTAXIS'],:]
             else:
-                print('DATAINIT: Warning: No photosphere data found for ' + self.name)
+                if verbose:
+                    print('DATAINIT: Warning: No photosphere data found for ' + self.name)
             if 'WALLAXIS' in header.keys():
                 self.data['iwall'] = HDUdata[0].data[header['WALLAXIS'],:]
             else:
-                print('DATAINIT: Warning: No outer wall data found for ' + self.name)
+                if verbose:
+                    print('DATAINIT: Warning: No outer wall data found for ' + self.name)
             if 'ANGAXIS' in header.keys():
                 self.data['disk'] = HDUdata[0].data[header['ANGAXIS'],:]
             else:
-                print('DATAINIT: Warning: No outer disk data found for ' + self.name)
+                if verbose:
+                    print('DATAINIT: Warning: No outer disk data found for ' + self.name)
             # Remaining components are not always (or almost always) present, so no warning given if missing!
             if 'SCATAXIS' in header.keys():
                 self.data['scatt'] = HDUdata[0].data[header['SCATAXIS'],:]
@@ -1457,7 +1613,7 @@ class TTS_Model(object):
         
         return
     
-    def blueExcessModel(self, shockPath):
+    def blueExcessModel(self, shockPath=shockpath):
         """
         Adding the excess emission in the optical and near-UV from accretion shock models to the total emission. The
         models are taken from Laura Ingleby's models.
@@ -1527,8 +1683,8 @@ class TTS_Model(object):
         self.data['total'][wlgrid2] += secondInterp
         
         # Doublecheck for the existence of NaNs in your model:
-        if np.isnan(np.sum(self.data['total'])):
-            print('BLUEEXCESSMODEL: WARNING! There are NaNs in the total component of your model.')
+        #if np.isnan(np.sum(self.data['total'])):
+        #    print('BLUEEXCESSMODEL: WARNING! There are NaNs in the total component of your model.')
         
         # Now all of the other components are not on the same grid. Let's interpolate all of them:
         for key in self.data.keys():
@@ -2050,52 +2206,6 @@ class TTS_Obs(object):
         cPickle.dump(self, f)
         f.close()
         return
-    
-    def SPEX_norm(self, spexFile, normlFl, normWL=1.22, scope='SPEX', saveErr=0):
-        """
-        Normalizes SPEX spectra for the object and then saves it into the object.
-        
-        INPUTS
-        spexFile: The .fits filename containing the data. This will likely require the path as well.
-        normlFl: The flux value corresponding to the normalization wavelength.
-        normWL: The wavelength (in microns) where you want to normalize the data. Default is J band.
-        saveErr: BOOLEAN -- if True (1), will save the errors into the object.
-        
-        OUTPUT
-        No formal output. The function will save the normalized spectrum into the object.
-        """
-        
-        # First, let's load in the file and fix the flux units:
-        spexHDU = fits.open(spexFile)
-        if len(np.where(spexHDU[0].data[0,:] < 0.0)[0]):
-            raise ValueError('SPEX_NORM: The SPEX wavelength has negative values. Likely bad data!')
-        spexHDU[0].data[1,:] *= spexHDU[0].data[0,:]*1e4    # wl in microns, but flux is angstrom^-1
-        
-        # Now we find out if/where the normalization wavelength and flux exist in the data:
-        normInd = np.where(spexHDU[0].data[0,:] >= normWL)[0][0]    # Is equal to WL or rounds down to it
-        
-        # If the normalization wavelength is in between two indices, interpolate the flux:
-        if spexHDU[0].data[0,normInd] != normWL:
-            # Make sure no NaNs:
-            if np.isnan(spexHDU[0].data[1,normInd]) or np.isnan(spexHDU[0].data[1,normInd-1]):
-                raise ValueError('SPEX_NORM: The SPEX flux is NaN at the normalization wavelength!')
-            normVal, normErr = (linearInterp(normWL, spexHDU[0].data[0,normInd-1], spexHDU[0].data[0,normInd],
-                                             spexHDU[0].data[1,normInd-1], spexHDU[0].data[1,normInd], 
-                                             spexHDU[0].data[2,normInd-1], spexHDU[0].data[2,normInd]))
-        else:
-            if np.isnan(spexHDU[0].data[1,normInd]):
-                raise ValueError('SPEX_NORM: The SPEX flux is NaN at the normalization wavelength!')
-            normVal = spexHDU[0].data[1,normInd]
-            normErr = spexHDU[0].data[2,normInd]
-        
-        # Now we can normalize all the flux and then save it in the object:
-        normFlux = (spexHDU[0].data[1,:] / normVal) * normlFl
-        if saveErr:
-            self.add_spectra(scope, spexHDU[0].data[0,:], normFlux, spec_err=spexHDU[0].data[2,:])
-        else:
-            self.add_spectra(scope, spexHDU[0].data[0,:], normFlux)
-        
-        return
 
 class Red_Obs(TTS_Obs):
     """
@@ -2249,7 +2359,7 @@ class Red_Obs(TTS_Obs):
             phot_dered      = phot_dered * self.photometry[photKey]['wl'] * 1e-4
             phot_err        = phot_err * self.photometry[photKey]['wl'] * 1e-4
             deredObs.add_photometry(photKey, self.photometry[photKey]['wl'], phot_dered, errors=phot_err, ulim=ulimVal)
-
+                
         # Now that the new TTS_Obs object has been created and filled in, we must save it:
         deredObs.SPPickle(picklepath=picklepath)
         
