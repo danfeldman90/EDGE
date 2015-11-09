@@ -368,7 +368,7 @@ def convertSptype(spT):
 
 #----------------------------------------------DEPENDENT FUNCTIONS-----------------------------------------------
 # A function is considered dependent if it utilizes either the above independent functions, or the classes below.
-def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1, public=0):
+def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1, leg=1, public=0):
     """
     Creates a plot of a model and the observations for a given target.
     
@@ -387,6 +387,8 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
     diskcomb: BOOLEAN -- If 1 (True), will combine outer wall and disk components into one for plotting. If 0 (False), will separate.
     xlim: A list containing the lower and upper x-axis limits, respectively. Has default values.
     ylim: A list containing the lower and upper y-axis limits, respectively. Has default values.
+    params: BOOLEAN -- If 1 (True), the parameters for the model will be printed on the plot.
+    leg: BOOLEAN -- If 1 (True), the legend will be printed on the plot.
     
     OUTPUT
     A plot. Can be saved or plotted to the screen based on the "save" input parameter.
@@ -545,7 +547,8 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
     plt.ylabel(r'${\rm \lambda F_{\lambda}\; (erg\; s^{-1}\; cm^{-2})}$')
     plt.xlabel(r'${\rm {\bf \lambda}\; (\mu m)}$')
     plt.title(obs.name.upper())
-    plt.legend(loc=3)
+    if leg:
+        plt.legend(loc=3)
     
     # Should we save or should we plot?
     if save:
