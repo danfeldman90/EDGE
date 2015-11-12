@@ -1,5 +1,14 @@
 #!/bin/csh
 
+# Nov15 Kike: Two different mass accretion rates are used:
+# MDOT: Mass accretion rate in the disk, as usual. Used to calculate the surface 
+# density of the disk. It goes into viscoso as an input and is read from fort14.vis
+# in irr_dosamax.
+# MDOTSTAR: Mass accretion rate onto the star. Note that
+# it could be different to MDOT in the disk (e.g. if a planet is creating a 
+# cavity in the disk). This mass accretion rate is used to calculate the 
+# accretion luimnosity in opamean, irr_dosamax and the wall.
+
 #6aug15 CE cleaned up to work with EDGE
 #8mar12  LA
 #30nov07 CE
@@ -18,6 +27,10 @@ set TSTAR='4060' #in K
 set RSTAR='2.8'  #in Rsun
 set DISTANCIA='400'  #in pasecs
 set MDOT='3.0e-8' #in Msun/yr 
+set MDOTSTAR=$MDOT #in Msun/yr. Mass accretion rate onto the star. Note that
+# it could be different to MDOT in the disk (e.g. if a planet is creating a 
+# cavity in the disk). This mass accretion rate is used to calculate the 
+# accretion luimnosity in opamean, irr_dosamax and the wall.
 
 #shock parameters ----------------------------
 set TSHOCK=8000.  #in K
@@ -236,12 +249,13 @@ set labepb=e$epsilonbig
 #programs ----------------------------------------------------------------
 set PHOTOS=$DIRPRO/photosphere
 set COMBINA=$DIRPRO/combina
-set OPA_PROG=$DIROPA/opa_sgi_tsub1400_nogas_ssh
+set OPA_PROG=$DIROPA/opa_sgi_tsub1400_nogas_ssh_v2
 set VIS_PROG=$DIRPRO/viscoso
-set IRR_DOSAMAX=$DIRPRO/irr_dosamax_v2
+set IRR_DOSAMAX=$DIRPRO/irr_dosamax_v4
 set PROPERTIES=$DIRPRO/readfort14
+set PROP_PROG=$DIRPRO/prop_dos
 set WALLFAST=$DIRPRO/WALL/wall_fast
-set SEDANGLE=$DIRPRO/sed_angle_dossinborde_rinau_sgi_ialb0_v2
+set SEDANGLE=$DIRPRO/sed_angle_dossinborde_rinau_sgi_ialb0_v3
 set SEDSCATT=$DIRPRO/sed_scatter_dos_rinau_sgi
 
 #input files----------------------------------------------
@@ -355,7 +369,7 @@ set FILEABSROSS=absross.$labcom\_ts14ng.$labelepsilon.p3p5.$labelamax.$labtstar.
 $OPA_PROG << EOD
 $TSTAR $ABUND
 $TSHOCK
-$MDOT
+$MDOTSTAR
 $MSTAR
 $RSTAR
 $FILEPLANCKMEANB
@@ -405,7 +419,7 @@ set FILEABSROSS=absross.$labcom\_ts14ng.$labelepsilon.p3p5.$labelamax.$labtstar.
 $OPA_PROG << EOD
 $TSTAR $ABUND
 $TSHOCK
-$MDOT
+$MDOTSTAR
 $MSTAR
 $RSTAR
 $FILEPLANCKMEANB
@@ -501,6 +515,7 @@ rm -f $FILESALIRR
 echo calculating irradiated disk 
 $IRR_DOSAMAX << EOD
 $TSTAR $RSTAR $MSTAR $Rmagm
+$MDOTSTAR
 $FILEROSSMEANB
 $FILEPLANCKMEANB
 $FILEROSSMEANBTS
@@ -524,12 +539,46 @@ endif
 
 #begin disk properties calculation--------------
 if  ($IPROP == 1) then
-echo calculating disk properties
+echo calculating disk properties, fort15
 set FILEOUT=fort15.$extension
 rm -f $FILEOUT
 $PROPERTIES << EOD
 $FILESALIRR
 $FILEOUT
+EOD
+endif
+if ($IPROP == 1) then
+set FILEPROP=prop.$extension
+set labelepsilon=$labeps
+set labelamax=$lamaxs
+set FILEPLANCKMEANS=planck.$labcom\_ts14ng.$labelepsilon.p3p5.$labelamax.dat
+set FILEROSSMEANS=rosseland.$labcom\_ts14ng.$labelepsilon.p3p5.$labelamax.dat 
+set FILEPLANCKMEANSTS=planck.$labcom\_ts14ng.$labelepsilon.p3p5.$labelamax.$labtstar.dat
+set FILEROSSMEANSTS=rosseland.$labcom\_ts14ng.$labelepsilon.p3p5.$labelamax.$labtstar.dat 
+set FILEPLANCKMEANSTOT=plancktot.$labcom\_ts14ng.$labelepsilon.p3p5.$labelamax.$labtstar.dat
+set labelepsilon=$labepb
+set labelamax=$lamaxb
+set FILEPLANCKMEANB=planck.$labcom\_ts14ng.$labelepsilon.p3p5.$labelamax.dat
+set FILEROSSMEANB=rosseland.$labcom\_ts14ng.$labelepsilon.p3p5.$labelamax.dat
+set FILEPLANCKMEANBTS=planck.$labcom\_ts14ng.$labelepsilon.p3p5.$labelamax.$labtstar.dat
+set FILEROSSMEANBTS=rosseland.$labcom\_ts14ng.$labelepsilon.p3p5.$labelamax.$labtstar.dat
+set FILEPLANCKMEANBTOT=plancktot.$labcom\_ts14ng.$labelepsilon.p3p5.$labelamax.$labtstar.dat
+echo calculating disk properties with tau, prop
+$PROP_PROG << EOD
+$TSTAR $MSTAR
+$FILEROSSMEANB
+$FILEPLANCKMEANB
+$FILEROSSMEANBTS
+$FILEPLANCKMEANBTS
+$FILEPLANCKMEANBTOT
+$FILEROSSMEANS
+$FILEPLANCKMEANS
+$FILEROSSMEANSTS
+$FILEPLANCKMEANSTS
+$FILEPLANCKMEANSTOT
+$FILESALIRR
+$FILEPROP
+$VISFILEPMM
 EOD
 endif
 #end disk properties calculation------------------
@@ -560,7 +609,7 @@ set FILEWALLIMAGE=wallimage.mu$MUI.$extension.$labelend
 
 $WALLFAST << EOD
 $TEMP
-$MDOT
+$MDOTSTAR
 $MSTAR $TSTAR $RSTAR
 $MUI
 $DISTANCIA
