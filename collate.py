@@ -306,13 +306,6 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, high=0, noextinc
                     except IndexError:
                         print('WARNING IN JOB '+jobnum+ ': NO VALUE FOR MDOTSTAR IN JOBFILE, ASSUMING MDOTSTAR = MDOT')
                     
-                    #TEMP = jobf.split(param+"=")[1].split('#')[0][0] == '$'
-#                    else:
-#                        dparam[ind] = float(jobf.split(param+"='")[1].split("'")[0])
-
-#                except Indexerror:
-#                    elif jobf.split(param+"=")[1].split('#')[0][0] == '$':
-#                        dparam[ind] = float(jobf.split(param+"='")[1].split("'")[0])
             else:
                 dparam[ind] = float(jobf.split(param+"='")[1].split("'")[0])
 
