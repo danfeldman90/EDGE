@@ -1354,6 +1354,7 @@ class TTS_Model(object):
     rstar: Star's radius.
     dist: Distance to the star.
     mdot: Mass accretion rate.
+    mdotstar: Mass accretion rate onto the star. Usually same as mdot but not necessarily.
     alpha: Alpha parameter (from the viscous alpha disk model).
     mui: Inclination of the system.
     rdisk: The outer radius of the disk.
