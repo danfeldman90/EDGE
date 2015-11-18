@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
-# Last updated: 11/17/15 by Dan
+# Last updated: 11/18/15 by Dan
 
 #-------------------------------------------IMPORT RELEVANT MODELS-------------------------------------------
 import numpy as np
@@ -1130,67 +1130,112 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
     
     return
 
-def model_rchi2(objname, model, path, obsNeglect=[], weight='default'):
+def model_rchi2(obj, model, obsNeglect=[], wp=0.5):
     """
     Calculates a reduced chi-squared goodness of fit.
     
     INPUTS
-    objname: The name of the object to match for observational data.
+    obj: The object containing the observations we are comparing to. Is an instance of TTS_Obs()
     model: The model to test. Must be an instance of TTS_Model(), with a calculated total.
-    path: The path containing the observations.
     obsNeglect: A list of all the observations keys that you don't wish to be considered.
-    weight: The weight option you'd like to use for your chi2 calculation.
+    wp: The weight option you'd like to use for your photometry's chi2 calculation. The
+            weight for the spectra will just be 1 - wp. Default is .5 for each.
     
     OUTPUT
-    rchi_sq: The value for the reduced chi-squared test on the model.
+    total_chi: The value for the reduced chi-squared test on the model.
     """
     
-    # Read in observations:
-    objectObs   = loadPickle(objname, picklepath=path)
+    # Fit the photometry and the spectra separately. Start with photometry:
+    # Initialize empty arrays
+    wavelength = np.array([], dtype=float)
+    flux       = np.array([], dtype=float)
+    errs       = np.array([], dtype=float)
     
-    # Get the model and observations onto the same wavelength vector:
-    wavelength  = np.array([], dtype=float)
-    flux        = np.array([], dtype=float)
-    # Build the observations flux and wavelength vectors:
-    for obsKey in objectObs.photometry.keys():
+    # Build the flux and wavelength vectors, excluding data we don't care about:
+    for obsKey in obj.photometry.keys():
         if obsKey in obsNeglect:
             continue                            # Skip any data you want to neglect
-        if obsKey in objectObs.ulim:
-            continue                            # Skip upper limits
-        wavelength = np.append(wavelength, objectObs.photometry[obsKey]['wl'])
-        flux    = np.append(flux, objectObs.photometry[obsKey]['lFl'])
-    for specKey in objectObs.spectra.keys():
-        wavelength = np.append(wavelength, objectObs.spectra[specKey]['wl'])
-        flux    = np.append(flux, objectObs.spectra[specKey]['lFl'])
-    waveindex   = np.argsort(wavelength)        # indices that sort the array
-    wavelength  = wavelength[waveindex]
-    flux        = flux[waveindex]
-    # If there are any NaNs in the array, we need to chop them out, stat!
+        if obsKey in obj.ulim:
+            continue                            # Skip any upper limits
+        wavelength = np.append(wavelength, obj.photometry[obsKey]['wl'])
+        flux       = np.append(flux, obj.photometry[obsKey]['lFl'])
+        try:
+            errs   = np.append(errs, obj.photometry[obsKey]['err'])
+        except KeyError:
+            # if no error, assume 10%:
+            errs   = np.append(errs, np.ones(len(obj.photometry[obsKey]['wl']))/10.0)
+        finally:
+            if np.isnan(np.sum(errs)):          # Fix if error is NaN
+                errsBad = np.where(np.isnan(errs))
+                errs[errsBad] = 0.1
+    
+    # Sort the arrays:
+    waveindex      = np.argsort(wavelength)     # Indices that sort the array
+    wavelength     = wavelength[waveindex]
+    flux           = flux[waveindex]
+    errs           = errs[waveindex]
+    
+    # Check and remove NaNs from the data, if any:
     if np.isnan(np.sum(flux)):
-        badVals = np.where(np.isnan(flux))      # Where the NaNs are located
-        flux    = np.delete(flux, badVals)
+        badVals    = np.where(np.isnan(flux))   # Where the NaNs are located
+        flux       = np.delete(flux, badVals)
         wavelength = np.delete(wavelength, badVals)
-    # Interpolate so the observations and model are on the same grid:
-    modelFlux   = np.interp(wavelength, model.data['wl'], model.data['total'])
+        errs       = np.delete(errs, badVals)
     
-    # The tough part -- figuring out the proper weights. Let's take a stab:
-    weights     = np.ones(len(wavelength))      # Start with all ones
-    if weight == 'default':
-        weights[wavelength <= 8.5] = 25         # Some weight to early phot/spec data
-        weights[wavelength >= 22.] = 60         # More weight to outer piece of SED
-    elif weight == 'twoWall':
-        weights[wavelength >= 22.]  = 40        # More weight to outer piece of SED
-        weights[wavelength <= 22.]  = 30        # These weights good for opt. thin dust comparisons
-    elif weight == 'outerOnly':
-        weights[wavelength >= 22.] = 60         # Only weighting the outer region of SED
-    else:
-        raise IOError('MODEL_RCHI2: Invalid option for Chi2 weights!')
+    # Interpolate the model so the observations and model are on the same grid:
+    modelFlux      = np.interp(wavelength, model.data['wl'], model.data['total'])
     
-    # Calculate the reduced chi-squared value for the model:
-    chi_arr     = (flux - modelFlux) * weights / flux
-    rchi_sq     = np.sum(chi_arr*chi_arr) / (len(chi_arr) - 1.)
+    # Calculate the chi2:
+    chi            = (flux - modelFlux) / (errs*flux)
+    rchi_sqP       = np.sum(chi*chi) / (len(chi) - 1)
     
-    return rchi_sq
+    # Now, do the same thing but for the spectra:
+    # Initialize empty arrays
+    wavelengthS= np.array([], dtype=float)
+    fluxS      = np.array([], dtype=float)
+    errsS      = np.array([], dtype=float)
+    
+    # Build the flux and wavelength vectors, excluding data we don't care about:
+    for specKey in obj.spectra.keys():
+        if specKey in obsNeglect:
+            continue                            # Skip any data you want to neglect
+        wavelengthS= np.append(wavelengthS, obj.spectra[specKey]['wl'])
+        fluxS      = np.append(fluxS, obj.spectra[specKey]['lFl'])
+        try:
+            # if no error, assume 10%:
+            errsS  = np.append(errsS, np.sqrt(obj.spectra[specKey]['SpecErr']**2.0+obj.spectra[specKey]['NodErr']**2.0))
+        except KeyError:
+            errsS  = np.append(errsS, np.ones(len(obj.spectra[specKey]['wl']))/10.0)
+        finally:
+            if np.isnan(np.sum(errsS)):         # Fix if error is NaN
+                errsBadS = np.where(np.isnan(errsS))
+                errsS[errsBadS] = 0.1
+    
+    # Sort the arrays:
+    waveindexS     = np.argsort(wavelengthS)    # Indices that sort the array
+    wavelengthS    = wavelengthS[waveindexS]
+    fluxS          = fluxS[waveindexS]
+    errsS          = errsS[waveindexS]
+    
+    # Check and remove NaNs from the data, if any:
+    if np.isnan(np.sum(fluxS)):
+        badValsS   = np.where(np.isnan(fluxS))  # Where the NaNs are located
+        fluxS      = np.delete(fluxS, badValsS)
+        wavelengthS= np.delete(wavelengthS, badValsS)
+        errsS      = np.delete(errsS, badValsS)
+    
+    # Interpolate the model so the observations and model are on the same grid:
+    modelFluxS     = np.interp(wavelengthS, model.data['wl'], model.data['total'])
+    
+    # Calculate the chi2:
+    chiS           = (fluxS - modelFluxS) / (errsS*fluxS)
+    rchi_sqS       = np.sum(chiS*chiS) / (len(chiS) - 1)
+    
+    # Now that I have both values, calculate the total chi squared based on weights:
+    ws        = 1.0 - wp                        # total weights must add to 1
+    total_chi = (wp*rchi_sqP) + (ws*rchi_sqS)
+    
+    return total_chi                            # Done!
 
 def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
     """
@@ -1420,7 +1465,6 @@ class TTS_Model(object):
         self.rstar      = header['RSTAR']
         self.dist       = header['DISTANCE']
         self.mdot       = header['MDOT']
-        self.mdotstar   = header['MDOTSTAR']
         self.alpha      = header['ALPHA']
         self.mui        = header['MUI']
         self.rdisk      = header['RDISK']
@@ -1441,6 +1485,10 @@ class TTS_Model(object):
         self.dpath      = dpath
         self.high       = high
         self.extcorr    = None
+        try:
+            self.mdotstar = header['MDOTSTAR']
+        except KeyError:
+            self.mdotstar = self.mdot
         
         HDUlist.close()
         return
