@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
-# Last updated: 11/18/15 by Dan
+# Last updated: 11/24/15 by Dan
 
 #-------------------------------------------IMPORT RELEVANT MODELS-------------------------------------------
 import numpy as np
@@ -555,7 +555,7 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
         if type(jobn) != int:
             raise ValueError('LOOK: Jobn must be an integer if you wish to save the plot.')
         jobstr          = numCheck(jobn)
-        plt.savefig(savepath + obs.name.upper() + '_' + jobstr + '.pdf', dpi=350)
+        plt.savefig(savepath + obs.name.upper() + '_' + jobstr + '.pdf', dpi=250)
     else:
         plt.show()
     plt.clf()
@@ -1160,7 +1160,7 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5):
         wavelength = np.append(wavelength, obj.photometry[obsKey]['wl'])
         flux       = np.append(flux, obj.photometry[obsKey]['lFl'])
         try:
-            errs   = np.append(errs, obj.photometry[obsKey]['err'])
+            errs   = np.append(errs, obj.photometry[obsKey]['err']/obj.photometry[obsKey]['lFl'])
         except KeyError:
             # if no error, assume 10%:
             errs   = np.append(errs, np.ones(len(obj.photometry[obsKey]['wl']))/10.0)
@@ -1876,8 +1876,12 @@ class PTD_Model(TTS_Model):
             # Depending on old or new version is how we will load in the data. We require the wall be "new":
             if self.new:
                 # Correct for self extinction:
-                iwallFcorr= HDUwall[0].data[HDUwall[0].header['WALLAXIS'],:]*np.exp(-1*HDUdata[0].data[header['EXTAXIS'],:])
-                
+                try:
+                    iwallFcorr= HDUwall[0].data[HDUwall[0].header['WALLAXIS'],:]*np.exp(-1*HDUdata[0].data[header['EXTAXIS'],:])
+                except KeyError:
+                    print('DATAINIT: WARNING! No extinction correction can be made for job ' + str(self.jobn)+'!')
+                    iwallFcorr= HDUwall[0].data[HDUwall[0].header['WALLAXIS'],:]
+                    
                 # We will load in the components piecemeal based on the axes present in the header.
                 # First though, we initialize with the wavelength and wall, since they're always present.
                 self.data = {'wl': HDUdata[0].data[header['WLAXIS'],:], 'iwall': iwallFcorr}
