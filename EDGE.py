@@ -1163,7 +1163,10 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5):
             errs   = np.append(errs, obj.photometry[obsKey]['err']/obj.photometry[obsKey]['lFl'])
         except KeyError:
             # if no error, assume 10%:
-            errs   = np.append(errs, np.ones(len(obj.photometry[obsKey]['wl']))/10.0)
+            try:
+                errs = np.append(errs, np.ones(len(obj.photometry[obsKey]['wl']))/10.0)
+            except TypeError:
+                errs = np.append(errs, 0.1)     # Fix for if there's only one data point
         finally:
             if np.isnan(np.sum(errs)):          # Fix if error is NaN
                 errsBad = np.where(np.isnan(errs))
