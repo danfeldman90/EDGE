@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
-# Last updated: 11/24/15 by Dan
+# Last updated: 12/03/15 by Dan
 
 #-------------------------------------------IMPORT RELEVANT MODELS-------------------------------------------
 import numpy as np
@@ -2286,6 +2286,7 @@ class Red_Obs(TTS_Obs):
         """
         Deredden the spectra/photometry present in the object, and then convert to TTS_Obs structure.
         This function is adapted from the IDL procedure 'dered_calc.pro' (written by Melissa McClure).
+        This requires the spectral fluxes to be units of erg s-1 cm-2 cm-1.
         
         INPUTS
         Av: The Av extinction value.
