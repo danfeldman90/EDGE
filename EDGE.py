@@ -2424,7 +2424,10 @@ class Red_Obs(TTS_Obs):
                 ulimVal     = 0
             # Now, convert everything to flux units:
             phot_dered      = phot_dered * self.photometry[photKey]['wl'] * 1e-4
-            phot_err        = phot_err * self.photometry[photKey]['wl'] * 1e-4
+            try:
+                phot_err        = phot_err * self.photometry[photKey]['wl'] * 1e-4
+            except TypeError:
+                pass
             deredObs.add_photometry(photKey, self.photometry[photKey]['wl'], phot_dered, errors=phot_err, ulim=ulimVal)
                 
         # Now that the new TTS_Obs object has been created and filled in, we must save it:
