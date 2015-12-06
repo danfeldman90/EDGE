@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
-# Last updated: 12/03/15 by Dan
+# Last updated: 12/06/15 by Dan
 
-#-------------------------------------------IMPORT RELEVANT MODELS-------------------------------------------
+#---------------------------------------------IMPORT RELEVANT MODULES--------------------------------------------
 import numpy as np
 import matplotlib.pyplot as plt
 #from astropy.io import ascii
