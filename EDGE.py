@@ -690,7 +690,11 @@ def job_file_create(jobnum, path, high=0, iwall=0, **kwargs):
     No formal outputs are returned by this function; the file is created in the path directory.
     """
     
-    # First, let's read in the sample job file so we have a template:
+    # First we have to make sure that the job_sample file has been "fixed" for the \r issue:
+    os.system("cat " + path + "job_sample | tr -d '\r' > " + path + "job_sample2")
+    os.system("mv " + path + "job_sample2 " + path + "job_sample")
+    
+    # Next, let's read in the sample job file so we have a template:
     job_file = open(path+'job_sample', 'r')
     fullText = job_file.readlines()     # All text in a list of strings
     job_file.close()
