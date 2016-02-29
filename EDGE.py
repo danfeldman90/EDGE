@@ -366,6 +366,21 @@ def convertSptype(spT):
     
     return spT_float
 
+def apparent_to_absolute(d_pc, mag):
+    """
+    Converts apparent magnitude to absolute magnitude, given a distance to the object in pc.
+    
+    INPUTS
+    d_pc: Distance to the object in parsecs.
+    mag: Apparent magnitude.
+    
+    OUTPUT
+    absMag: Absolute magnitude.
+    """
+    
+    absMag = mag - 5.0 * math.log10(d_pc / 10.0)
+    return absMag
+
 #----------------------------------------------DEPENDENT FUNCTIONS-----------------------------------------------
 # A function is considered dependent if it utilizes either the above independent functions, or the classes below.
 def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1, leg=1, public=0):
@@ -403,6 +418,7 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
         colkeys         = ['p', 'r', 'o', 'b', 'c', 'm', 'g', 'y', 'l', 'k', 't', 'w', 'v', 'd', 'n', 'e', 'j', 's']    # Order in which colors are used
 
     # Let the plotting begin!
+    plt.clf()
     plt.figure(1)
     
     # Plot the spectra first:
@@ -521,23 +537,24 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
                 plt.plot(model.data['shockLong']['wl'], model.data['shockLong']['lFl'], c=colors['s'], linewidth=2.0, zorder=2, label='Shock Model')
             if 'total' in modkeys:
                 plt.plot(model.data['wl'], model.data['total'], c='k', linewidth=2.0, label='Combined Model')
-        # Now, the relevant meta-data:
-    if params:
-        plt.figtext(0.60,0.88,'Eps = '+ str(model.eps), color='#010000', size='9')
-        plt.figtext(0.80,0.88,'Alpha = '+ str(model.alpha), color='#010000', size='9')
-        plt.figtext(0.60,0.82,'Amax = '+ str(model.amax), color='#010000', size='9')
-        plt.figtext(0.60,0.85,'Rin = '+ str(model.rin), color='#010000', size='9')
-        plt.figtext(0.80,0.85,'Rout = '+ str(model.rdisk), color='#010000', size='9')
-        plt.figtext(0.60,0.79,'Altinh = '+ str(model.wallH), color='#010000', size='9')
-        plt.figtext(0.80,0.82,'Mdot = '+ str(model.mdot), color='#010000', size='9')
-        # If we have an outer wall height:
-        try:
-            plt.figtext(0.80,0.79,'AltinhOuter = '+ str(model.owallH), color='#010000', size='9')
-        except AttributeError:
-            plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.temp), color='#010000', size='9')
-        else:
-            plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.itemp), color='#010000', size='9')
-            plt.figtext(0.80,0.76,'OWall Temp = '+ str(model.temp), color='#010000', size='9')
+    # Now, the relevant meta-data:
+    if model != None:    
+        if params:
+            plt.figtext(0.60,0.88,'Eps = '+ str(model.eps), color='#010000', size='9')
+            plt.figtext(0.80,0.88,'Alpha = '+ str(model.alpha), color='#010000', size='9')
+            plt.figtext(0.60,0.82,'Amax = '+ str(model.amax), color='#010000', size='9')
+            plt.figtext(0.60,0.85,'Rin = '+ str(model.rin), color='#010000', size='9')
+            plt.figtext(0.80,0.85,'Rout = '+ str(model.rdisk), color='#010000', size='9')
+            plt.figtext(0.60,0.79,'Altinh = '+ str(model.wallH), color='#010000', size='9')
+            plt.figtext(0.80,0.82,'Mdot = '+ str(model.mdot), color='#010000', size='9')
+            # If we have an outer wall height:
+            try:
+                plt.figtext(0.80,0.79,'AltinhOuter = '+ str(model.owallH), color='#010000', size='9')
+            except AttributeError:
+                plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.temp), color='#010000', size='9')
+            else:
+                plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.itemp), color='#010000', size='9')
+                plt.figtext(0.80,0.76,'OWall Temp = '+ str(model.temp), color='#010000', size='9')
         
     # Lastly, the remaining parameters to plotting (mostly aesthetics):
     plt.xscale('log')
@@ -558,7 +575,6 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
         plt.savefig(savepath + obs.name.upper() + '_' + jobstr + '.pdf', dpi=250)
     else:
         plt.show()
-    plt.clf()
 
     return
 
@@ -1134,7 +1150,7 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
     
     return
 
-def model_rchi2(obj, model, obsNeglect=[], wp=0.5):
+def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0):
     """
     Calculates a reduced chi-squared goodness of fit.
     
@@ -1236,7 +1252,10 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5):
     
     # Calculate the chi2:
     chiS           = (fluxS - modelFluxS) / (errsS*fluxS)
-    rchi_sqS       = np.sum(chiS*chiS) / (len(chiS) - 1)
+    if non_reduce:
+        rchi_sqS   = np.sum(chiS*chiS)
+    else:
+        rchi_sqS   = np.sum(chiS*chiS) / (len(chiS) - 1)
     
     # Now that I have both values, calculate the total chi squared based on weights:
     ws        = 1.0 - wp                        # total weights must add to 1
@@ -1396,6 +1415,38 @@ def twoWallCombine(name, jobMain, wallNumRange, altinhRange=range(1,5), dpath=da
     outputF.close()
     
     return
+
+def MdotCalc(uApMag, d_pc, Mstar, Rstar, Rin):
+    """
+    Calculates the accretion rate based on the relation in Gullbring et al. 1998, using the 
+    apparent U band magnitude and some stellar/disk properties.
+    
+    INPUTS
+    
+    
+    OUTPUTS
+    
+    """
+    
+    # First, calculate the absolute U band magnitude:
+    uAbsMag = apparent_to_absolute(d_pc, uApMag)
+
+    # Convert the absolute magnitude to a U band luminosity:
+    UmagSun = 5.61      # From Binney and Merrifield 1998
+    #UmagSun = 4.74
+    L_u     = 100.0**((UmagSun - uAbsMag)/5.0)      # Luminosity in U band / Lsun
+    
+    # Use the U band luminosity to calculate the accretion luminosity:
+    L_acc   = math.exp(1.09*math.log10(L_u) + 0.98) * 3.84e26
+    
+    # Lastly, back out the accretion rate:
+    G       = 6.67e-11                              # G in meters
+    Rin_m   = Rin * 1.496e11                        # Rin in meters
+    Rstar_m = Rstar * 6.955e8                       # Rstar in meters
+    Mstar_kg= Mstar * 1.989e30                      # Mstar in kg
+    Mdot    = (Rstar_m * L_acc / (G*Mstar_kg)) / (1.0 - Rstar_m/Rin_m) * 3.16e7 / 1.989e30 
+    
+    return Mdot
 
 #---------------------------------------------------CLASSES------------------------------------------------------
 class TTS_Model(object):
