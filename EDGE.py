@@ -366,6 +366,21 @@ def convertSptype(spT):
     
     return spT_float
 
+def apparent_to_absolute(d_pc, mag):
+    """
+    Converts apparent magnitude to absolute magnitude, given a distance to the object in pc.
+    
+    INPUTS
+    d_pc: Distance to the object in parsecs.
+    mag: Apparent magnitude.
+    
+    OUTPUT
+    absMag: Absolute magnitude.
+    """
+    
+    absMag = mag - 5.0 * math.log10(d_pc / 10.0)
+    return absMag
+
 #----------------------------------------------DEPENDENT FUNCTIONS-----------------------------------------------
 # A function is considered dependent if it utilizes either the above independent functions, or the classes below.
 def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1, leg=1, public=0):
@@ -403,6 +418,8 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
         colkeys         = ['p', 'r', 'o', 'b', 'c', 'm', 'g', 'y', 'l', 'k', 't', 'w', 'v', 'd', 'n', 'e', 'j', 's']    # Order in which colors are used
 
     # Let the plotting begin!
+    if save == 0:
+        plt.clf()
     plt.figure(1)
     
     # Plot the spectra first:
@@ -521,23 +538,24 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
                 plt.plot(model.data['shockLong']['wl'], model.data['shockLong']['lFl'], c=colors['s'], linewidth=2.0, zorder=2, label='Shock Model')
             if 'total' in modkeys:
                 plt.plot(model.data['wl'], model.data['total'], c='k', linewidth=2.0, label='Combined Model')
-        # Now, the relevant meta-data:
-    if params:
-        plt.figtext(0.60,0.88,'Eps = '+ str(model.eps), color='#010000', size='9')
-        plt.figtext(0.80,0.88,'Alpha = '+ str(model.alpha), color='#010000', size='9')
-        plt.figtext(0.60,0.82,'Amax = '+ str(model.amax), color='#010000', size='9')
-        plt.figtext(0.60,0.85,'Rin = '+ str(model.rin), color='#010000', size='9')
-        plt.figtext(0.80,0.85,'Rout = '+ str(model.rdisk), color='#010000', size='9')
-        plt.figtext(0.60,0.79,'Altinh = '+ str(model.wallH), color='#010000', size='9')
-        plt.figtext(0.80,0.82,'Mdot = '+ str(model.mdot), color='#010000', size='9')
-        # If we have an outer wall height:
-        try:
-            plt.figtext(0.80,0.79,'AltinhOuter = '+ str(model.owallH), color='#010000', size='9')
-        except AttributeError:
-            plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.temp), color='#010000', size='9')
-        else:
-            plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.itemp), color='#010000', size='9')
-            plt.figtext(0.80,0.76,'OWall Temp = '+ str(model.temp), color='#010000', size='9')
+    # Now, the relevant meta-data:
+    if model != None:    
+        if params:
+            plt.figtext(0.60,0.88,'Eps = '+ str(model.eps), color='#010000', size='9')
+            plt.figtext(0.80,0.88,'Alpha = '+ str(model.alpha), color='#010000', size='9')
+            plt.figtext(0.60,0.82,'Amax = '+ str(model.amax), color='#010000', size='9')
+            plt.figtext(0.60,0.85,'Rin = '+ str(model.rin), color='#010000', size='9')
+            plt.figtext(0.80,0.85,'Rout = '+ str(model.rdisk), color='#010000', size='9')
+            plt.figtext(0.60,0.79,'Altinh = '+ str(model.wallH), color='#010000', size='9')
+            plt.figtext(0.80,0.82,'Mdot = '+ str(model.mdot), color='#010000', size='9')
+            # If we have an outer wall height:
+            try:
+                plt.figtext(0.80,0.79,'AltinhOuter = '+ str(model.owallH), color='#010000', size='9')
+            except AttributeError:
+                plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.temp), color='#010000', size='9')
+            else:
+                plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.itemp), color='#010000', size='9')
+                plt.figtext(0.80,0.76,'OWall Temp = '+ str(model.temp), color='#010000', size='9')
         
     # Lastly, the remaining parameters to plotting (mostly aesthetics):
     plt.xscale('log')
@@ -556,9 +574,9 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
             raise ValueError('LOOK: Jobn must be an integer if you wish to save the plot.')
         jobstr          = numCheck(jobn)
         plt.savefig(savepath + obs.name.upper() + '_' + jobstr + '.pdf', dpi=250)
+        plt.clf()
     else:
         plt.show()
-    plt.clf()
 
     return
 
@@ -1134,7 +1152,7 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
     
     return
 
-def model_rchi2(obj, model, obsNeglect=[], wp=0.5):
+def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0):
     """
     Calculates a reduced chi-squared goodness of fit.
     
@@ -1189,6 +1207,12 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5):
         wavelength = np.delete(wavelength, badVals)
         errs       = np.delete(errs, badVals)
     
+    # If there are NaNs in the actual model, remove them:
+    if np.isnan(np.sum(model.data['total'])):
+        badValsMod = np.where(np.isnan(model.data['total']))
+        for key in model.data.keys():
+            model.data[key] = np.delete(model.data[key], badValsMod)
+    
     # Interpolate the model so the observations and model are on the same grid:
     modelFlux      = np.interp(wavelength, model.data['wl'], model.data['total'])
     
@@ -1236,7 +1260,10 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5):
     
     # Calculate the chi2:
     chiS           = (fluxS - modelFluxS) / (errsS*fluxS)
-    rchi_sqS       = np.sum(chiS*chiS) / (len(chiS) - 1)
+    if non_reduce:
+        rchi_sqS   = np.sum(chiS*chiS)
+    else:
+        rchi_sqS   = np.sum(chiS*chiS) / (len(chiS) - 1)
     
     # Now that I have both values, calculate the total chi squared based on weights:
     ws        = 1.0 - wp                        # total weights must add to 1
@@ -1247,7 +1274,7 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5):
 def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
     """
     Calculates the effective temperature and luminosity of a T-Tauri star. Uses either values based on
-    Kenyon and Hartmann 1995, or Pecault and Mamajet (source?). This function is based on code written
+    Kenyon and Hartmann (1995), or Pecault and Mamajek (2013). This function is based on code written
     by Alice Perez at CIDA.
     
     INPUTS
@@ -1255,7 +1282,7 @@ def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
     mag: The magnitude used for correction. Must be either V band or J band.
     Av: The extinction in the V band.
     dist: The distance to your object in parsecs.
-    params: Must be either 'KH' (for Kenyon & Hartmann) or 'PM' (for Pecault and Mamajet)
+    params: Must be either 'KH' (for Kenyon & Hartmann) or 'PM' (for Pecault and Mamajek)
     picklepath: Where the star_param.pkl file is located. Default is hardcoded for where EDGE.py is located.
     jnotv: BOOLEAN -- if True (1), it sets 'mag' input to be J band magnitude rather than V band.
     
@@ -1396,6 +1423,80 @@ def twoWallCombine(name, jobMain, wallNumRange, altinhRange=range(1,5), dpath=da
     outputF.close()
     
     return
+
+def MdotCalc(Umag, Rmag, d_pc, Temp, Mstar, Rstar):
+    """
+    Calculates the accretion rate based on the relation in Gullbring et al. 1998, using the 
+    apparent U band magnitude and some stellar/disk properties.
+    
+    INPUTS
+    Umag: The U band apparent magnitude for your object.
+    Rmag: The R band apparent magnitude for your object.
+    d_pc: The distance to the object in parsecs.
+    Temp: The stellar effective temperature for your object.
+    Mstar: The stellar mass of your object, in units of solar masses.
+    Rstar: The stellar radius of your object, in units of solar radii.
+    Rin: The inner radius of your disk, in AU.
+    
+    OUTPUTS
+    Mdot: The mass accretion rate for your object in solar masses per year.
+    """
+    
+    # Define the arrays containing the temperature, U-R pairs:
+    temps   = (np.flipud(np.array([30000, 25400, 22000, 18700, 17000, 15400, 14000, 13000, 11900,
+                         10500,  9520,  9230,  8970,  8720,  8460,  8200,  8350,  7850,
+                         7580,  7390,  7200,  7050,  6890,  6740,  6590,  6440,  6360,
+                         6280,  6200,  6115,  6030,  5945,  5860,  5830,  5800,  5770,
+                         5700,  5630,  5520,  5410,  5250,  5080,  4900,  4730,  4590,
+                         4350,  4205,  4060,  3850,  3720,  3580,  3470,  3370,  3240,  3050])))
+    colors  = (np.flipud(np.array([-1.51, -1.34, -1.18, -1.02, -0.91, -0.78, -0.67, -0.54, -0.42,
+                         -0.17,  0.02,  0.1 ,  0.18,  0.26,  0.33,  0.4 ,  0.43,  0.47,
+                         0.53,  0.59,  0.64,  0.68,  0.72,  0.75,  0.77,  0.8 ,  0.86,
+                         0.94,  1.01,  1.07,  1.14,  1.16,  1.17,  1.24,  1.33,  1.4 ,
+                         1.45,  1.52,  1.59,  1.74,  1.91,  2.13,  2.26,  2.63,  2.93,
+                         3.21,  3.5 ,  3.79,  3.94,  4.14,  4.19,  4.25,  4.59,  4.87,  5.26])))
+    
+    # First, calculate the U band magnitude of the photosphere:
+    tempMatch     = np.where(temps == Temp)[0]
+    #pdb.set_trace()
+    if len(tempMatch) == 0:                         # Is there an exact match? If not, interpolate
+        colInterp = np.interp(Temp, temps, colors)
+    else:
+        colInterp = colors[tempMatch]
+    Uphot   = Rmag + colInterp
+    print colInterp
+    # Convert to Absolute Magnitude:
+    #uAbsMag = apparent_to_absolute(d_pc, Umag)
+    #uPhotAbs= apparent_to_absolute(d_pc, Uphot)
+    
+    # Calculate the U flux for the photosphere and star to get excess luminosity:
+    photFlux= convertMag(Uphot, 'U') * 1e-3 * (0.068 / 0.367)
+    starFlux= convertMag(Umag, 'U') * 1e-3 * (0.068 / 0.367)
+    #starFlux= 4.2708040e-14
+    #photFlux= convertMag(uPhotAbs, 'U')
+    #starFlux= convertMag(uAbsMag, 'U')
+    
+    L_u     = (4.0*math.pi) * (starFlux - photFlux) * (d_pc * 3.086e16)**2.0
+    L_u_norm= L_u / 3.84e26
+    #
+    # uAbsMag = apparent_to_absolute(d_pc, uApMag)
+    #
+    # # Convert the absolute magnitude to a U band luminosity:
+    # UmagSun = 5.61      # From Binney and Merrifield 1998
+    # #UmagSun = 4.74
+    # L_u     = 100.0**((UmagSun - uAbsMag)/5.0)      # Luminosity in U band / Lsun
+    
+    # Use the U band luminosity to calculate the accretion luminosity:
+    L_acc   = 3.84e26 * 10.0**(1.09*math.log10(L_u_norm) + 0.98)
+    
+    # Lastly, back out the accretion rate:
+    G       = 6.67e-11                              # G in meters
+    #Rin_m   = Rin * 1.496e11                        # Rin in meters
+    Rstar_m = Rstar * 6.955e8                       # Rstar in meters
+    Mstar_kg= Mstar * 1.989e30                      # Mstar in kg
+    Mdot    = (Rstar_m * L_acc / (G*Mstar_kg)) / 0.8 * 3.16e7 / 1.989e30 
+    
+    return Mdot
 
 #---------------------------------------------------CLASSES------------------------------------------------------
 class TTS_Model(object):
@@ -1680,7 +1781,7 @@ class TTS_Model(object):
         
         return
     
-    def blueExcessModel(self, shockPath=shockpath):
+    def blueExcessModel(self, shockPath=shockpath, veilVal=None, Vflux=None):
         """
         Adding the excess emission in the optical and near-UV from accretion shock models to the total emission. The
         models are taken from Laura Ingleby's models.
@@ -1714,13 +1815,6 @@ class TTS_Model(object):
         if len(lowVals) != 0:
             shockTable = np.delete(shockTable, lowVals, 0)
         
-        # Define and add the accretion shock data:
-        shockWL        = shockTable[:,0].copy() # I might make cuts later, so want to copy now
-        shockFlux      = shockTable[:,1].copy()
-        shockMod       = shockTable[:,2].copy()
-        self.data['shock']  = {'wl': shockWL, 'lFl': shockFlux}
-        self.data['WTTS']   = {'wl': shockWL, 'lFl': shockMod}
-        
         # Check for NaNs in the data, and if they exist, remove them:
         if np.isnan(np.sum(shockTable[:,2])):
             badVals    = np.where(np.isnan(shockTable[:,2]))
@@ -1728,6 +1822,17 @@ class TTS_Model(object):
         if np.isnan(np.sum(shockTable[:,3])):
             badVals2   = np.where(np.isnan(shockTable[:,3]))
             shockTable = np.delete(shockTable, badVals2, 0)
+        
+        # Define and add the accretion shock data:
+        shockWL        = shockTable[:,0].copy() # I might make cuts later, so want to copy now
+        shockFlux      = shockTable[:,1].copy()
+        shockMod       = shockTable[:,2].copy()
+        self.data['shock']  = {'wl': shockWL, 'lFl': shockFlux}
+        self.data['WTTS']   = {'wl': shockWL, 'lFl': shockMod}
+        if veilVal is not None:
+            normVfactor     = Vflux / (1 + veilVal)
+            self.data['WTTS']['lFl'] = normalize(self.data['WTTS'], 0.545, normVfactor)
+            
             
         # Need to interpolate the model onto the appropriate wavelength grid:
         wlgrid = np.where(np.logical_and(self.data['wl'] <= shockTable[-1,0], self.data['wl'] >= shockTable[0,0]))[0]
@@ -1736,7 +1841,7 @@ class TTS_Model(object):
         self.data['total'][wlgrid] = np.nan
         
         # Add to the total data, and then plop back into the full grid.
-        excessTotal        = totalInterp + shockTable[:,2] + shockTable[:,3]
+        excessTotal        = totalInterp + self.data['WTTS']['lFl'] + shockTable[:,3]
         oldWavelength      = self.data['wl'].copy()     # Save a copy for later
         self.data['wl']    = np.append(self.data['wl'], shockTable[:,0])
         self.data['total'] = np.append(self.data['total'], excessTotal)
@@ -1769,7 +1874,7 @@ class TTS_Model(object):
             pass
         
         # Normalize the Kenyon and Hartmann photosphere to the WTTS photosphere for rough consistency:
-        normFactor = np.max(shockTable[-100:,2])
+        normFactor = np.max(self.data['WTTS']['lFl'][-100:])
         photAnchor = self.data['phot'][np.where(self.data['wl'] == shockTable[-1,0])[0]]
         self.data['phot'] *= normFactor / photAnchor
         
