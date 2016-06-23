@@ -9,25 +9,36 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 import scipy.interpolate as sinterp
 #from matplotlib.backends.backend_pdf import PdfPages
+import os#!/usr/bin/env python
+# Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
+# Last updated: 12/06/15 by Dan
+
+#---------------------------------------------IMPORT RELEVANT MODULES--------------------------------------------
+import numpy as np
+import matplotlib.pyplot as plt
+#from astropy.io import ascii
+from astropy.io import fits
+import scipy.interpolate as sinterp
+#from matplotlib.backends.backend_pdf import PdfPages
 import os
 import itertools
 import math
-import cPickle
+import _pickle as cPickle
 import pdb
 
 #----------------------------------------------PLOTTING PARAMETERS-----------------------------------------------
 # Regularizes the plotting parameters like tick sizes, legends, etc.
 plt.rc('xtick', labelsize='medium')
 plt.rc('ytick', labelsize='medium')
-plt.rc('text', usetex=True)
+#plt.rc('text', usetex=True)
 plt.rc('legend', fontsize=10)
 plt.rc('axes', labelsize=15)
 plt.rc('figure', autolayout=True)
 
 #-----------------------------------------------------PATHS------------------------------------------------------
 # Folders where model output data and observational data can be found:
-edgepath        = '/Users/danfeldman/Python_Code/EDGE/'
-datapath        = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/Models/CVSO109PT2/'
+edgepath        = '/Users/Connor/Desktop/Research/diad/EDGE/'
+datapath        = '/Users/Connor/Desktop/Research/iceline/data/'
 #figurepath      = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/Look_SEDs/CVSO107/'
 figurepath      = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/Models/Full_CVSO_Grid/CVSO58_sil/'
 shockpath       = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/ob1bspectra/'
@@ -517,7 +528,7 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
                     try:
                         diskflux = model.data['owall'] + model.data['disk']
                     except KeyError:
-                        print 'LOOK: Error, tried to combine outer wall and disk components but one component is missing!'
+                        print('LOOK: Error, tried to combine outer wall and disk components but one component is missing!')
                     else:    
                         plt.plot(model.data['wl'], diskflux, ls='--', c='#8B0A1E', linewidth=2.0, label='Outer Disk')
             else:
@@ -644,7 +655,7 @@ def loadPickle(name, picklepath=datapath, num=None, red=0):
             # Check if there is more than one
             flist           = filelist(picklepath)
             if (name + '_red_1.pkl') in flist:
-                print 'LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!'
+                print('LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!')
             f               = open(picklepath+name+'_red.pkl', 'rb')
             pickle          = cPickle.load(f)
             f.close()
@@ -658,7 +669,7 @@ def loadPickle(name, picklepath=datapath, num=None, red=0):
             # Check if there is more than one
             flist           = filelist(picklepath)
             if (name + '_obs_1.pkl') in flist:
-                print 'LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!'
+                print('LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!')
             f               = open(picklepath+name+'_obs.pkl', 'rb')
             pickle          = cPickle.load(f)
             f.close()
@@ -892,7 +903,7 @@ def job_file_create(jobnum, path, high=0, iwall=0, **kwargs):
     if 'tshock' in kwargs:                          # Shock temp parameter
         tshockVal = kwargs['tshock']
         del kwargs['tshock']
-        fullText[35] = fullText[35][:11] + str(int(tshockVal)) + fullText[35][-8:]
+        fullText[35] = fullText[35][:11] + str(int(tshockVal))+'.' + fullText[35][-8:]
     if 'alpha' in kwargs:                           # Alpha viscosity parameter
         alphaVal = kwargs['alpha']
         del kwargs['alpha']
@@ -954,7 +965,7 @@ def job_file_create(jobnum, path, high=0, iwall=0, **kwargs):
     # Lastly, check for unused kwargs that may have been misspelled:
     if len(kwargs) != 0:
         print('JOB_FILE_CREATE: Unused kwargs, could be mistakes:')
-        print kwargs.keys()
+        print(kwargs.keys())
     
     return
     
@@ -973,11 +984,11 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
         rstar - radius of protostar
         dist - distance to the protostar (or likely, the cluster it's in)
         mui - the cosine of the inclination angle
-        rdisk - the outer radius
+        rout - the outer radius
         rin - the inner radius
         labelend - the labelend of all output files when job file is run
-        tau - optical depth, I think
-        power - no idea what this one is
+`        tau - optical depth, I think
+`        power - no idea what this one is
         fudgeorg - don't know this one either
         fudgetroi - or this one...should probably look this up
         fracsil - fraction of silicates by mass
@@ -1074,6 +1085,7 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
         else:
             raise ValueError('JOB_OPTTHIN_CREATE: Invalid input for AMAX!')
     
+    
     # Now we can cycle through the easier changes desired:    
     if 'labelend' in kwargs:                        # Labelend for output files
         labelVal = kwargs['labelend']
@@ -1082,11 +1094,11 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
     if 'tstar' in kwargs:                           # Stellar effective temperature
         tstarVal = kwargs['tstar']
         del kwargs['tstar']
-        fullText[8] = fullText[8][:10] + str(tstarVal) + fullText[8][-42:]
+        fullText[8] = fullText[8][:11] + str(tstarVal) + fullText[8][-42:]
     if 'rstar' in kwargs:                           # Stellar radius (solar units)
         rstarVal = kwargs['rstar']
         del kwargs['rstar']
-        fullText[9] = fullText[9][:10] + str(rstarVal) + fullText[9][-43:]
+        fullText[9] = fullText[9][:11] + str(rstarVal) + fullText[9][-43:]
     if 'dist' in kwargs:                            # Distance (in pc)
         distVal = kwargs['dist']
         del kwargs['dist']
@@ -1148,7 +1160,7 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
     # Lastly, check for unused kwargs that may have been misspelled:
     if len(kwargs) != 0:
         print('JOB_OPTTHIN_CREATE: Unused kwargs, could be mistakes:')
-        print kwargs.keys()
+        print(kwargs.keys())
     
     return
 
@@ -1458,13 +1470,12 @@ def MdotCalc(Umag, Rmag, d_pc, Temp, Mstar, Rstar):
     
     # First, calculate the U band magnitude of the photosphere:
     tempMatch     = np.where(temps == Temp)[0]
-    #pdb.set_trace()
     if len(tempMatch) == 0:                         # Is there an exact match? If not, interpolate
         colInterp = np.interp(Temp, temps, colors)
     else:
         colInterp = colors[tempMatch]
     Uphot   = Rmag + colInterp
-    print colInterp
+    print(colInterp)
     # Convert to Absolute Magnitude:
     #uAbsMag = apparent_to_absolute(d_pc, Umag)
     #uPhotAbs= apparent_to_absolute(d_pc, Uphot)
@@ -1688,12 +1699,12 @@ class TTS_Model(object):
             componentNumber += 1
         if phot:
             if verbose:
-                print 'CALC_TOTAL: Adding photosphere component to the total flux.'
+                print('CALC_TOTAL: Adding photosphere component to the total flux.')
             totFlux     = totFlux + self.data['phot']
             componentNumber += 1
         if wall:
             if verbose:
-                print 'CALC_TOTAL: Adding inner wall component to the total flux.'
+                print('CALC_TOTAL: Adding inner wall component to the total flux.')
             if altinh != None:
                 self.newIWall = self.data['iwall'] * altinh
                 totFlux       = totFlux + self.newIWall     # Note: if save=1, will save iwall w/ the original altinh.
@@ -1709,7 +1720,7 @@ class TTS_Model(object):
             componentNumber += 1
         if disk:
             if verbose:
-                print 'CALC_TOTAL: Adding disk component to the total flux.'
+                print('CALC_TOTAL: Adding disk component to the total flux.')
             totFlux     = totFlux + self.data['disk']
             componentNumber += 1
         if dust != 0:
@@ -1719,7 +1730,7 @@ class TTS_Model(object):
                 raise ValueError('CALC_TOTAL: Error! Dust input not a valid integer')
             dustHDU     = fits.open(self.dpath+self.name+'_OTD_'+dustNum+'.fits')
             if verbose:
-                print 'CALC_TOTAL: Adding optically thin dust component to total flux.'
+                print('CALC_TOTAL: Adding optically thin dust component to total flux.')
             if self.new:
                 self.data['dust']   = dustHDU[0].data[1,:]
             else:
@@ -1737,7 +1748,7 @@ class TTS_Model(object):
         
         # Add the total flux array to the data dictionary attribute:
         if verbose:
-            print 'CALC_TOTAL: Total flux calculated. Adding to the data structure.'
+            print('CALC_TOTAL: Total flux calculated. Adding to the data structure.')
         self.data['total'] = totFlux
         componentNumber += 1
         
@@ -2119,12 +2130,12 @@ class PTD_Model(TTS_Model):
         componentNumber = 1
         if phot:
             if verbose:
-                print 'CALC_TOTAL: Adding photosphere component to the total flux.'
+                print('CALC_TOTAL: Adding photosphere component to the total flux.')
             totFlux     = totFlux + self.data['phot']
             componentNumber += 1
         if wall:
             if verbose:
-                print 'CALC_TOTAL: Adding inner wall component to the total flux.'
+                print('CALC_TOTAL: Adding inner wall component to the total flux.')
             if altInner != None:
                 self.newIWall = self.data['iwall'] * altInner
                 totFlux       = totFlux + self.newIWall     # Note: if save=1, will save iwall w/ the original altinh.
@@ -2140,12 +2151,12 @@ class PTD_Model(TTS_Model):
             componentNumber += 1
         if disk:
             if verbose:
-                print 'CALC_TOTAL: Adding disk component to the total flux.'
+                print('CALC_TOTAL: Adding disk component to the total flux.')
             totFlux     = totFlux + self.data['disk']
             componentNumber += 1
         if owall:
             if verbose:
-                print 'CALC_TOTAL: Adding outer wall component to the total flux.'
+                print('CALC_TOTAL: Adding outer wall component to the total flux.')
             if altOuter != None:
                 self.newOWall = self.data['owall'] * altOuter
                 totFlux = totFlux + self.newOWall           # Note: if save=1, will save owall w/ the original altinh.
@@ -2166,7 +2177,7 @@ class PTD_Model(TTS_Model):
                 raise ValueError('CALC_TOTAL: Error! Dust input not a valid integer')
             dustHDU     = fits.open(self.dpath+self.name+'_OTD_'+dustNum+'.fits')
             if verbose:
-                print 'CALC_TOTAL: Adding optically thin dust component to total flux.'
+                print('CALC_TOTAL: Adding optically thin dust component to total flux.')
             if self.new:
                 self.data['dust'] = dustHDU[0].data[1,:]
             else:    
@@ -2184,7 +2195,7 @@ class PTD_Model(TTS_Model):
         
         # Add the total flux array to the data dictionary attribute:
         if verbose:
-            print 'CALC_TOTAL: Total flux calculated. Adding to the data structure.'
+            print('CALC_TOTAL: Total flux calculated. Adding to the data structure.')
         self.data['total'] = totFlux
         componentNumber += 1
         
@@ -2274,12 +2285,12 @@ class TTS_Obs(object):
         
         # Check if the telescope data already exists in the data file:
         if scope in self.spectra.keys():
-            print 'ADD_SPECTRA: Warning! This will overwrite current entry!'
+            print('ADD_SPECTRA: Warning! This will overwrite current entry!')
             tries               = 1
             while tries <= 5:                                           # Give user 5 chances to choose if overwrite data or not
                 proceed         = raw_input('Proceed? (Y/N): ')         # Prompt and collect manual answer - requires Y,N,Yes,No (not case sensitive)
                 if proceed.upper() == 'Y' or proceed.upper() == 'YES':  # If Y or Yes, overwrite file, then break out of loop
-                    print 'ADD_SPECTRA: Replacing entry.'
+                    print('ADD_SPECTRA: Replacing entry.')
                     if spec_err == None and nod_err == None:
                         self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr}
                     elif spec_err != None and nod_err == None:
@@ -2290,7 +2301,7 @@ class TTS_Obs(object):
                         self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'specErr': spec_err, 'nodErr': nod_err}
                     break
                 elif proceed.upper() == 'N' or proceed.upper() == 'NO': # If N or No, do not overwrite data and return
-                    print 'ADD_SPECTRA: Will not replace entry. Returning now.'
+                    print('ADD_SPECTRA: Will not replace entry. Returning now.')
                     return
                 else:
                     tries       = tries + 1                             # If something else, lets you try again
@@ -2321,12 +2332,12 @@ class TTS_Obs(object):
         
         # Check if the telescope data already exists in the data file:
         if scope in self.photometry.keys():
-            print 'ADD_PHOTOMETRY: Warning! This will overwrite current entry!'
+            print('ADD_PHOTOMETRY: Warning! This will overwrite current entry!')
             tries                   = 1
             while tries <= 5:                                               # Give user 5 chances to choose if overwrite data or not
                 proceed             = raw_input('Proceed? (Y/N): ')         # Prompt and collect manual answer - requires Y,N,Yes,No (not case sensitive)
                 if proceed.upper() == 'Y' or proceed.upper() == 'YES':      # If Y or Yes, overwrite file, then break out of loop
-                    print 'ADD_PHOTOMETRY: Replacing entry.'
+                    print('ADD_PHOTOMETRY: Replacing entry.')
                     if errors == None:
                         self.photometry[scope]  = {'wl': wlarr, 'lFl': fluxarr}
                     else:
@@ -2335,7 +2346,7 @@ class TTS_Obs(object):
                         self.ulim.append(scope)                             # If upper limit, append metadata to ulim attribute list.
                     break
                 elif proceed.upper() == 'N' or proceed.upper() == 'NO':     # If N or No, do not overwrite data and return
-                    print 'ADD_PHOTOMETRY: Will not replace entry. Returning now.'
+                    print('ADD_PHOTOMETRY: Will not replace entry. Returning now.')
                     return
                 else:
                     tries           = tries + 1                             # If something else, lets you try again
@@ -2371,7 +2382,7 @@ class TTS_Obs(object):
         while 1:
             if outname in pathlist:
                 if count == 1:
-                    print 'SPPICKLE: Pickle already exists in directory. For safety, will change name.'
+                    print('SPPICKLE: Pickle already exists in directory. For safety, will change name.')
                 countstr= numCheck(count)
                 count   = count + 1
                 outname = self.name + '_obs_' + countstr + '.pkl'
@@ -2417,7 +2428,7 @@ class Red_Obs(TTS_Obs):
         
         # Read in the dereddening laws pickle. The default is whereever you keep EDGE.py, but you can move it.
         extPickle = open(lpath + 'ext_laws.pkl', 'rb')
-        extLaws   = cPickle.load(extPickle)
+        extLaws   = cPickle.load(extPickle, encoding = 'latin1')
         extPickle.close()
         
         # Figure out which law we will be using based on the user input and Av:
@@ -2482,6 +2493,7 @@ class Red_Obs(TTS_Obs):
         # Loop over the provided spectra (and possible errors), and compute the dereddened fluxes
         # and uncertainties where available. The possible uncertainties calculations are both the
         # SSC/SMART's "spectral uncertainty" and the "nod-differenced uncertainty".
+
         for specKey in self.spectra.keys():
             extInterpolated = np.interp(self.spectra[specKey]['wl'], wave_law, ext_law) # Interpolated ext.
             A_lambda        = extInterpolated * (A_object / AvoAj)
@@ -2500,11 +2512,11 @@ class Red_Obs(TTS_Obs):
             else:
                 spec_nod    = None
             # Correct units to flux:
-            spec_flux       = spec_flux * self.spectra[specKey]['wl'] * 1e-4
-            if spec_unc != None:
-                spec_unc    = spec_unc  * self.spectra[specKey]['wl'] * 1e-4
-            if spec_nod != None:
-                spec_nod    = spec_nod  * self.spectra[specKey]['wl'] * 1e-4
+            #spec_flux       = spec_flux * self.spectra[specKey]['wl']# * 1e-4
+            #if spec_unc != None:
+            #    spec_unc    = spec_unc  * self.spectra[specKey]['wl']# * 1e-4
+            #if spec_nod != None:
+            #    spec_nod    = spec_nod  * self.spectra[specKey]['wl']# * 1e-4
             deredObs.add_spectra(specKey, self.spectra[specKey]['wl'], spec_flux, spec_err=spec_unc, nod_err=spec_nod)
         
         # Spectra are done, onwards to photometry:
@@ -2563,7 +2575,7 @@ class Red_Obs(TTS_Obs):
         while 1:
             if outname in pathlist:
                 if count == 1:
-                    print 'SPPICKLE: Pickle already exists in directory. For safety, will change name.'
+                    print('SPPICKLE: Pickle already exists in directory. For safety, will change name.')
                 countstr= numCheck(count)
                 count   = count + 1
                 outname = self.name + '_red_' + countstr + '.pkl'
