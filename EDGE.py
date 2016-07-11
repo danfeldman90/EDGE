@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
-# Last updated: 12/06/15 by Dan
+# Last updated: 7/11/16 by Dan
 
 #---------------------------------------------IMPORT RELEVANT MODULES--------------------------------------------
 import numpy as np
@@ -129,6 +129,59 @@ def deci_to_time(ra=None, dec=None):
         new_dec  = '{0:s}{1:02d} {2:02d} {3:.2f}'.format(sign, degInt, minInt, seconds)
     
     return new_ra, new_dec
+
+def time_to_deci(ra='', dec=''):
+    """
+    Converts arc time coordinates of ra and dec into degree values. Adapted from BDNYC
+    code written by Joe Filippazzo.
+    
+    INPUTS
+    ra: The string coordinates of right ascension.
+    dec: The string coordinates of declination.
+    
+    OUTPUTS
+    RA: The converted RA.
+    DEC: The converted dec.
+    """
+    
+    RA, DEC, rs, ds = '', '', 1, 1
+    if dec:
+        D, M, S     = [float(i) for i in dec.split()]
+        if str(D)[0] == '-':
+            ds, D   = -1, abs(D)
+        deg = D + (M/60) + (S/3600)
+        DEC = '{0}'.format(deg*ds)
+    
+    if ra:
+        H, M, S     = [float(i) for i in ra.split()]
+        if str(H)[0] == '-':
+            rs, H   = -1, abs(H)
+        deg = (H*15) + (M/4) + (S/240)
+        RA  = '{0}'.format(deg*rs)
+    
+    if ra and dec:
+        return (RA, DEC)
+    else:
+        return RA or DEC
+
+def calcAngularDist(coords1, coords2):
+    """
+    Calculates the angular distance between two points on the sky. Inputs should be in degrees.
+    
+    INPUTS
+    coords1: A list containing the RA and Dec for the first position. Should be [RA, Dec]
+    coords2: A list containing the RA and Dec for the second position. Also [RA, Dec]
+    
+    OUTPUT
+    angDist: The angular distance in degrees.
+    """
+    
+    deltaRA = float(coords1[0]) - float(coords2[0])
+    deltaDEC= float(coords1[1]) - float(coords2[1])
+    decRads = float(coords1[0])*np.pi/180.              # Dec in radians
+    angDist = math.sqrt((deltaRA*math.cos(decRads)**2.0) + (deltaDEC**2.0))
+    
+    return angDist
 
 def linearInterp(x0, x1, x2, y1, y2, y1err, y2err):
     """
@@ -357,7 +410,7 @@ def convertSptype(spT):
         spT_float = 50.0 + sub_val
     elif spT[0] == 'K':
         spT_float = 60.0 + sub_val
-        if sub_val > 7.0:
+        if sub_val >= 8.0:
             print('WARNING: Spectral type is greater than K7 but less than M0...not physical.')
     elif spT[0] == 'M':
         spT_float = 68.0 + sub_val
@@ -381,9 +434,40 @@ def apparent_to_absolute(d_pc, mag):
     absMag = mag - 5.0 * math.log10(d_pc / 10.0)
     return absMag
 
+def diskMassCalc(lFl, wl, temp, dist):
+    """
+    Calculates the disk mass based on a sub-mm flux value. Needs to be in Rayleigh-Jeans
+    regime or else it doesn't work. This equation assumes implicity that the gas-to-dust
+    ratio is 100. NOTE: THIS IS UNTESTED FOR ACCURACY.
+    
+    INPUTS
+    lFl: The flux value at the given wavelength, in units of erg s-1 cm-2
+    wl: The wavelength of the band. It needs to be sufficiently in Rayleigh-Jeans regime. This
+        should be given in microns.
+    temp: The temperature of the dust in Kelvin.
+    dist: The distance to your object in parsecs.
+    
+    OUTPUT
+    dmass: The disk mass in solar masses.
+    """
+    
+    # Define the constants and convert to CGS units:
+    K       = 1.381e-16             # Boltzmann constant in cgs
+    C       = 3.0e10                # Speed of light in cgs
+    NUM     = 0.5e13                # Extra constant needed for equation in units of Hz
+    SOLMASS = 1.989e33              # Solar mass in cgs
+    wl_cgs  = wl / 1e4              # Wavelength conversion from microns to cm
+    d_cgs   = dist * 3.09e18        # Distance to object in cgs
+    
+    # Calculate the disk mass using equation from Williams & Cieza 2011:
+    dmass   = (NUM * lFl * (d_cgs**2.0) * (wl_cgs**4.0)) / (K * temp * (C**2.0))
+    dmass   /= (SOLMASS)            # Convert from cgs to solar masses
+    
+    return dmass
+
 #----------------------------------------------DEPENDENT FUNCTIONS-----------------------------------------------
 # A function is considered dependent if it utilizes either the above independent functions, or the classes below.
-def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1, leg=1, public=0):
+def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, msize=7.0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1, leg=1, public=0):
     """
     Creates a plot of a model and the observations for a given target.
     
@@ -419,27 +503,34 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
 
     # Let the plotting begin!
     if save == 0:
-        plt.clf()
-    plt.figure(1)
+        #plt.clf()
+        pass
+    #plt.figure(1)
     
     # Plot the spectra first:
     for sind, skey in enumerate(speckeys):
-        plt.plot(obs.spectra[skey]['wl'], obs.spectra[skey]['lFl'], color=colors[colkeys[sind]] , linewidth=2.0, label=skey)
+        if 'err' not in obs.spectra[skey].keys():
+            plt.plot(obs.spectra[skey]['wl'], obs.spectra[skey]['lFl'], 'o', mew=1.0, markersize=3, \
+                     mfc=colors[colkeys[sind]], mec= colors[colkeys[sind]], label=skey)
+        else:
+            plt.errorbar(obs.spectra[skey]['wl'], obs.spectra[skey]['lFl'], yerr=obs.spectra[skey]['err'], \
+                         mec=colors[colkeys[sind]], fmt='o', mfc=colors[colkeys[sind]], mew=1.0, markersize=2, \
+                         ecolor=colors[colkeys[sind]], elinewidth=0.5, capsize=1.0, label=skey)
     
     # Next is the photometry:
     for pind, pkey in enumerate(photkeys):
         # If an upper limit only:
         if pkey in obs.ulim:
             plt.plot(obs.photometry[pkey]['wl'], obs.photometry[pkey]['lFl'], 'v', \
-                     color=colors[colkeys[pind+len(speckeys)]], markersize=7, label=pkey, zorder=pind+10)
+                     color=colors[colkeys[pind+len(speckeys)]], markersize=msize, label=pkey, zorder=pind+10)
         # If not an upper limit, plot as normal:
         else:
             if 'err' not in obs.photometry[pkey].keys():
                 plt.plot(obs.photometry[pkey]['wl'], obs.photometry[pkey]['lFl'], 'o', mfc='w', mec=colors[colkeys[pind+len(speckeys)]], mew=1.0,\
-                         markersize=7, label=pkey, zorder=pind+10)
+                         markersize=msize, label=pkey, zorder=pind+10)
             else:
                 plt.errorbar(obs.photometry[pkey]['wl'], obs.photometry[pkey]['lFl'], yerr=obs.photometry[pkey]['err'], \
-                             mec=colors[colkeys[pind+len(speckeys)]], fmt='o', mfc='w', mew=1.0, markersize=7, \
+                             mec=colors[colkeys[pind+len(speckeys)]], fmt='o', mfc='w', mew=1.0, markersize=msize, \
                              ecolor=colors[colkeys[pind+len(speckeys)]], elinewidth=2.0, capsize=3.0, label=pkey, zorder=pind+10)
     # Publication style?
     if public:
@@ -562,9 +653,9 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
     plt.yscale('log')
     plt.xlim(xlim[0], xlim[1])
     plt.ylim(ylim[0], ylim[1])
-    plt.ylabel(r'${\rm \lambda F_{\lambda}\; (erg\; s^{-1}\; cm^{-2})}$')
-    plt.xlabel(r'${\rm {\bf \lambda}\; (\mu m)}$')
-    plt.title(obs.name.upper())
+    #plt.ylabel(r'${\rm \lambda F_{\lambda}\; (erg\; s^{-1}\; cm^{-2})}$')
+    #plt.xlabel(r'${\rm {\bf \lambda}\; (\mu m)}$')
+    #plt.title(obs.name.upper())
     if leg:
         plt.legend(loc=3)
     
@@ -1162,6 +1253,9 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0):
     obsNeglect: A list of all the observations keys that you don't wish to be considered.
     wp: The weight option you'd like to use for your photometry's chi2 calculation. The
             weight for the spectra will just be 1 - wp. Default is .5 for each.
+    non_reduce: BOOLEAN -- if True (1), will calculate a normal chi squared (not reduced).
+                If this is the case, the weighting will be 1 for the photometry, and for the
+                spectra will be the number of photometric points / number of spectra points.
     
     OUTPUT
     total_chi: The value for the reduced chi-squared test on the model.
@@ -1218,7 +1312,10 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0):
     
     # Calculate the chi2:
     chi            = (flux - modelFlux) / (errs*flux)
-    rchi_sqP       = np.sum(chi*chi) / (len(chi) - 1)
+    if non_reduce:
+        rchi_sqP   = np.sum(chi*chi)
+    else:
+        rchi_sqP   = np.sum(chi*chi) / (len(chi) - 1)
     
     # Now, do the same thing but for the spectra:
     # Initialize empty arrays
@@ -1261,15 +1358,66 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0):
     # Calculate the chi2:
     chiS           = (fluxS - modelFluxS) / (errsS*fluxS)
     if non_reduce:
-        rchi_sqS   = np.sum(chiS*chiS)
+        rchi_sqS   = np.sum(chiS*chiS)# * (float(len(chi))/len(chiS))
+        total_chi  = rchi_sqP + rchi_sqS
     else:
         rchi_sqS   = np.sum(chiS*chiS) / (len(chiS) - 1)
-    
-    # Now that I have both values, calculate the total chi squared based on weights:
-    ws        = 1.0 - wp                        # total weights must add to 1
-    total_chi = (wp*rchi_sqP) + (ws*rchi_sqS)
+        ws         = 1.0 - wp                   # total weights must add to 1
+        total_chi  = (wp*rchi_sqP) + (ws*rchi_sqS)
     
     return total_chi                            # Done!
+
+def BIC_Calc(obs, minChi, degFree=6, weight=None, ignoreKeys=[]):
+    """
+    Calculates the Bayesian Information Criteria (BIC) for your given model.
+    
+    INPUTS
+    obs: The observations object you're using for the chi-squared calculation.
+    minChi: The minimum Chi-Squared value obtained from your grid.
+    degFree: The degrees of freedom, i.e., how many model parameters you varied.
+    weight: How to calculate the number of points. Currently supports 'TwicePhot', 'SpectraOnly',
+            and None (the default). 'TwicePhot' counts twice the number of photometric points.
+            'SpectraOnly' counts only the spectral points. The default counts the photometric and
+            spectral points together with no weighting given to either.
+    ignoreKeys: A list containing any keys you want ignored in the point count.
+    
+    OUTPUT
+    bic: The Bayesian Information Criteria (BIC) calculated given the inputs.
+    """
+    # Need to calculate the number of data points being used:
+    if weight == 'TwicePhot':
+        # If TwicePhot, we count twice the number of photometric points for N
+        pointCounter    = 0
+        for key in obs.photometry.keys():
+            if key in ignoreKeys or key in obs.ulim:
+                continue
+            pointCounter    += len(obs.photometry[key]['lFl'])
+        pointCounter *= 2       # Twice, since the spectra are weighted evenly with photometry
+    elif weight == 'SpectraOnly':
+        # If SpectraOnly, we count the number of spectral points for N
+        pointCounter    = 0
+        for key in obs.spectra.keys():
+            if key in ignoreKeys:
+                continue
+            pointCounter    += len(obs.spectra[key]['lFl'])
+    elif weight == None:
+        # If no weighting (default), we count all of the points, spectra and photometry
+        pointCounter    = 0
+        for key in obs.photometry.keys():
+            if key in ignoreKeys or key in obs.ulim:
+                continue
+            pointCounter    += len(obs.photometry[key]['lFl'])
+        for key in obs.spectra.keys():
+            if key in ignoreKeys:
+                continue
+            pointCounter    += len(obs.spectra[key]['lFl'])
+    else:
+        raise IOError('BIC_CALC: You gave an invalid weighting!')
+    
+    # Now that we have the number of points (N), we can calculate the BIC:    
+    bic = minChi + degFree * np.log(pointCounter)
+    
+    return bic
 
 def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
     """
@@ -1332,19 +1480,19 @@ def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
     
     return float(Teff), lum
 
-def normalize(dataDict, normWL, normlFl, errorArr=None):
+def normalize(dataDict, normWL, normlFl):
     """
     Normalizes a given spectrum of data to the provided normalization wavelength and flux values. Optionally
     normalizes an associated error array.
     
     INPUTS
-    dataDict: The dictionary containing the data to normalize. Will have 'wl' and 'lFl' keys.
+    dataDict: The dictionary containing the data to normalize. Will have 'wl' and 'lFl' keys. 'err' is optional.
     normWL: The wavelength (in same unit as data's wl, typically microns) at which to normalize.
     normlFl: The flux value we are normalizing to at the given normalization wavelength.
-    errorArr: (Optional) The array of errors associated with the flux in dataDict.
     
     OUTPUT
     normFlux: The normalized flux array.
+    normErr: (optional) If errors are included, then this is the normalized errors.
     """
     
     # Find out if/where the normalization wavelength and flux exist in the data:
@@ -1355,10 +1503,10 @@ def normalize(dataDict, normWL, normlFl, errorArr=None):
         # Make sure no NaNs:
         if np.isnan(dataDict['lFl'][normInd]) or np.isnan(dataDict['lFl'][normInd-1]):
             raise ValueError('NORMALIZE: The flux is NaN at the normalization wavelength!')
-        if errorArr is not None:
+        if 'err' in dataDict.keys():
             normVal, normErr = (linearInterp(normWL, dataDict['wl'][normInd-1], dataDict['wl'][normInd],
                                              dataDict['lFl'][normInd-1], dataDict['lFl'][normInd],
-                                             errorArr[normInd-1], errorArr[normInd]))
+                                             dataDict['err'][normInd-1], dataDict['err'][normInd]))
         else:
             normVal, normErr = (linearInterp(normWL, dataDict['wl'][normInd-1], dataDict['wl'][normInd],
                                              dataDict['lFl'][normInd-1], dataDict['lFl'][normInd], 0.0, 0.0))
@@ -1366,15 +1514,14 @@ def normalize(dataDict, normWL, normlFl, errorArr=None):
         if np.isnan(dataDict['lFl'][normInd]):
             raise ValueError('NORMALIZE: The flux is NaN at the normalization wavelength!')
         normVal = dataDict['lFl'][normInd]
-        if errorArr is not None:
-            normErr = errorArr[normInd]
-        else:
-            normErr = 0.0
     
     # Now we normalize the flux:
     normFlux = (dataDict['lFl'] / normVal) * normlFl
     
-    # Normalize the error???
+    # Normalize the error based on percent error:
+    if 'err' in dataDict.keys():
+        normErr  = (dataDict['err']/dataDict['lFl']) * normFlux
+        return normFlux, normErr
     
     return normFlux
 
@@ -1497,6 +1644,50 @@ def MdotCalc(Umag, Rmag, d_pc, Temp, Mstar, Rstar):
     Mdot    = (Rstar_m * L_acc / (G*Mstar_kg)) / 0.8 * 3.16e7 / 1.989e30 
     
     return Mdot
+
+def binSpectra(obs, speckeys=[], ppbin=2):
+    """
+    Bin all the spectra in the obs object corresponding to the supplied
+    keys.
+    
+    INPUTS
+    obs: The observations pickle, which should be an instance if TTS_Obs or Red_Obs.
+    speckeys: The keys corresponding to the spectra that should be binned.
+    ppbin: The number of points in a given bin.
+    
+    OUTPUT
+    Though no output is explicitly given, the binned spectra are saved to the observations pickle.
+    """
+    
+    if len(speckeys) == 0:
+        print('BINSPECTRA: No keys were supplied. No binning will occur.')
+    else:
+        for key in speckeys:
+            if key not in obs.spectra.keys():
+                print('BINSPECTRA: ' + str(key) + ' not found in the observations object. Skipping.')
+                continue
+            binnedWL    = np.array([], dtype=float)
+            binnedFlux  = binnedWL.copy()
+            if len(obs.spectra[key]) == 3:
+                binnedErr   = binnedWL.copy()
+            for i in range(len(obs.spectra[key]['wl'])):
+                if i % ppbin != 0:
+                    continue
+                if np.isnan(np.sum(obs.spectra[key]['lFl'][i:i+ppbin])):
+                    continue
+                avgwl   = np.average(obs.spectra[key]['wl'][i:i+ppbin])
+                avgflux = np.average(obs.spectra[key]['lFl'][i:i+ppbin])
+                binnedWL    = np.append(binnedWL, avgwl)
+                binnedFlux  = np.append(binnedFlux, avgflux)
+                if len(obs.spectra[key]) == 3:
+                    avgerr  = np.average(obs.spectra[key]['err'][i:i+ppbin])
+                    binnedErr       = np.append(binnedErr, avgerr)
+            obs.spectra[key]['wl']  = binnedWL
+            obs.spectra[key]['lFl'] = binnedFlux
+            if len(obs.spectra[key]) == 3:
+                obs.spectra[key]['err'] = binnedErr
+    
+    return
 
 #---------------------------------------------------CLASSES------------------------------------------------------
 class TTS_Model(object):
@@ -2261,7 +2452,7 @@ class TTS_Obs(object):
         self.photometry = {}
         self.ulim       = []
         
-    def add_spectra(self, scope, wlarr, fluxarr, spec_err=None, nod_err=None):
+    def add_spectra(self, scope, wlarr, fluxarr, errors=None):
         """
         Adds an entry to the spectra attribute.
         
@@ -2280,14 +2471,10 @@ class TTS_Obs(object):
                 proceed         = raw_input('Proceed? (Y/N): ')         # Prompt and collect manual answer - requires Y,N,Yes,No (not case sensitive)
                 if proceed.upper() == 'Y' or proceed.upper() == 'YES':  # If Y or Yes, overwrite file, then break out of loop
                     print 'ADD_SPECTRA: Replacing entry.'
-                    if spec_err == None and nod_err == None:
+                    if errors == None:
                         self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr}
-                    elif spec_err != None and nod_err == None:
-                        self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'specErr': spec_err}
-                    elif spec_err == None and nod_err != None:
-                        self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'nodErr': nod_err}
-                    elif spec_err != None and nod_err != None:
-                        self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'specErr': spec_err, 'nodErr': nod_err}
+                    else:
+                        self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'err': errors}
                     break
                 elif proceed.upper() == 'N' or proceed.upper() == 'NO': # If N or No, do not overwrite data and return
                     print 'ADD_SPECTRA: Will not replace entry. Returning now.'
@@ -2297,14 +2484,10 @@ class TTS_Obs(object):
             else:
                 raise IOError('You did not enter the correct Y/N response. Returning without replacing.')   # If you enter bad response too many times, raise error.
         else:
-            if spec_err == None and nod_err == None:
+            if errors == None:
                 self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr}
-            elif spec_err != None and nod_err == None:
-                self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'specErr': spec_err}
-            elif spec_err == None and nod_err != None:
-                self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'nodErr': nod_err}
-            elif spec_err != None and nod_err != None:
-                self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'specErr': spec_err, 'nodErr': nod_err}
+            else:
+                self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'err': errors}
         return
     
     def add_photometry(self, scope, wlarr, fluxarr, errors=None, ulim=0):
@@ -2487,25 +2670,16 @@ class Red_Obs(TTS_Obs):
             A_lambda        = extInterpolated * (A_object / AvoAj)
             spec_flux       = np.float64(self.spectra[specKey]['lFl']*10.0**(0.4*A_lambda))
 
-            if 'specErr' in self.spectra[specKey].keys():
-                spec_unc    = np.float64(spec_flux*np.sqrt(((self.spectra[specKey]['specErr']/self.spectra[specKey]['lFl'])\
+            if 'err' in self.spectra[specKey].keys():
+                spec_unc    = np.float64(spec_flux*np.sqrt(((self.spectra[specKey]['err']/self.spectra[specKey]['lFl'])\
                                          **2.) + (((0.4*math.log(10)*extInterpolated*Av_unc)/(AvoAj))**2.)) )
             else:
                 spec_unc    = None
-            if 'nodErr' in self.spectra[specKey].keys():
-                pn_vals     = self.spectra[specKey]['nodErr']/abs(self.spectra[specKey]['nodErr'])
-                spec_nod    = np.float64(pn_vals*spec_flux*np.sqrt(((self.spectra[specKey]['nodErr'] \
-                                         / self.spectra[specKey]['lFl'])**2.) + \
-                                         (((0.4*math.log(10)*extInterpolated*Av_unc)/(AvoAj))**2.)) )
-            else:
-                spec_nod    = None
             # Correct units to flux:
             spec_flux       = spec_flux * self.spectra[specKey]['wl'] * 1e-4
             if spec_unc != None:
                 spec_unc    = spec_unc  * self.spectra[specKey]['wl'] * 1e-4
-            if spec_nod != None:
-                spec_nod    = spec_nod  * self.spectra[specKey]['wl'] * 1e-4
-            deredObs.add_spectra(specKey, self.spectra[specKey]['wl'], spec_flux, spec_err=spec_unc, nod_err=spec_nod)
+            deredObs.add_spectra(specKey, self.spectra[specKey]['wl'], spec_flux, errors=spec_unc)
         
         # Spectra are done, onwards to photometry:
         for photKey in self.photometry.keys():
