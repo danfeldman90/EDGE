@@ -983,7 +983,7 @@ def job_file_create(jobnum, path, high=0, iwall=0, **kwargs):
     if 'tshock' in kwargs:                          # Shock temp parameter
         tshockVal = kwargs['tshock']
         del kwargs['tshock']
-        fullText[35] = fullText[35][:11] + str(int(tshockVal)) + fullText[35][-8:]
+        fullText[35] = fullText[35][:11] + str(int(tshockVal))+'.' + fullText[35][-8:]
     if 'alpha' in kwargs:                           # Alpha viscosity parameter
         alphaVal = kwargs['alpha']
         del kwargs['alpha']
