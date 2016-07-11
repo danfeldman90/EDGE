@@ -503,9 +503,9 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
 
     # Let the plotting begin!
     if save == 0:
-        #plt.clf()
-        pass
-    #plt.figure(1)
+        plt.clf()
+        #pass
+    plt.figure(1)
     
     # Plot the spectra first:
     for sind, skey in enumerate(speckeys):
@@ -653,9 +653,9 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
     plt.yscale('log')
     plt.xlim(xlim[0], xlim[1])
     plt.ylim(ylim[0], ylim[1])
-    #plt.ylabel(r'${\rm \lambda F_{\lambda}\; (erg\; s^{-1}\; cm^{-2})}$')
-    #plt.xlabel(r'${\rm {\bf \lambda}\; (\mu m)}$')
-    #plt.title(obs.name.upper())
+    plt.ylabel(r'${\rm \lambda F_{\lambda}\; (erg\; s^{-1}\; cm^{-2})}$')
+    plt.xlabel(r'${\rm {\bf \lambda}\; (\mu m)}$')
+    plt.title(obs.name.upper())
     if leg:
         plt.legend(loc=3)
     
