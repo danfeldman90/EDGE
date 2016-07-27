@@ -1331,7 +1331,7 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0):
         fluxS      = np.append(fluxS, obj.spectra[specKey]['lFl'])
         try:
             # if no error, assume 10%:
-            errsS  = np.append(errsS, np.sqrt(obj.spectra[specKey]['SpecErr']**2.0+obj.spectra[specKey]['NodErr']**2.0))
+            errsS  = np.append(errsS, obj.spectra[obsKey]['err']/obj.spectra[obsKey]['lFl'])
         except KeyError:
             errsS  = np.append(errsS, np.ones(len(obj.spectra[specKey]['wl']))/10.0)
         finally:
