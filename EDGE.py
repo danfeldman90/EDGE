@@ -197,7 +197,7 @@ def convertJy(value, wavelength):
     
     return flux
 
-def convertMag(value, band, jy='False'):
+def convertMag(value, band, jy='False', getwl='False'):
     """
     Converts a magnitude into a flux in erg s-1 cm-2. To use this for an array, use np.vectorize().
     Currently handles:
@@ -223,6 +223,10 @@ def convertMag(value, band, jy='False'):
     OUTPUTS
     flux: The flux value in erg s-1 cm-2.
     fluxJ: The flux value in Jy.
+    
+    MODIFICATIONS BY CONNOR:
+        Added ability to return the wavelength alongside the flux
+    
     """
     
     # First convert to Janskys:
@@ -307,14 +311,45 @@ def convertMag(value, band, jy='False'):
     elif band.upper()   == 'W4':
         fluxJ       = 8.36 * (10.0**(value / -2.5))
         wavelength  = 22.09
+    elif band.upper() == 'GAIAG':
+        fluxJ       = 3488 * (10.0**(value / -2.5))
+        wavelength = .550
+        
+        
     else:
         raise ValueError('CONVERTMAG: Unknown Band given. Cannot convert.')
     
     if jy == 'False':
         # Next, convert to flux from Janskys:
-        flux        = convertJy(fluxJ, wavelength)              # Ok, so maybe this is a dependent function...
-        return flux                                             # Shhhhhhh! :)
-    return fluxJ
+        flux        = convertJy(fluxJ, wavelength)  # Ok, so maybe this is a dependent function. Shhhhhhh! :)
+        
+        if getwl == True:
+            return flux, wavelength
+        else:
+            return flux
+    
+    if getwl == True:
+        return fluxJ, wavelength
+    else:
+        return fluxJ
+
+def convertMagErr(flux, magerr):
+    """
+    Converts magnitude errors into flux errors
+    
+    INPUT:
+        flux: Flux values in any flux units (Doensn't matter which type, based on fractional uncertainty)
+        magerr: Error in magnitudes
+    
+    OUTPUT:
+        fluxerr: Error in the flux units
+    
+    """
+    
+    fluxerr = np.abs(flux*(10**(-magerr/2.5) - 1))
+    return fluxerr
+    
+
 
 def numCheck(num, high=0):
     """
@@ -709,6 +744,7 @@ def job_file_create(jobnum, path, high=0, iwall=0, **kwargs):
         fracpyrox - the fractional abundance of amorphous pyroxene
         fracforst - the fractional abundance of crystalline forsterite
         fracent - the fractional abundance of crystalline enstatite
+        lamaxb - string for maximum grain size in the disk midplane (currently accepts '1mm' and '1cm')
         
         Some can still be included, such as dust grain compositions. They just aren't
         currently supported. If any supplied kwargs are unused, it will print at the end.
@@ -944,6 +980,15 @@ def job_file_create(jobnum, path, high=0, iwall=0, **kwargs):
         enstVal = kwargs['fracent']
         del kwargs['fracent']
         fullText[141] = fullText[141][:20] + str(enstVal) + fullText[141][23:]
+        
+    if 'lamaxb' in kwargs:
+        lamaxbVal=kwargs['lamaxb']
+        del kwargs['lamaxb']
+        amaxdict={'1mm':'1000','1cm':'10000'}
+        amaxbVal = amaxdict[lamaxbVal]
+        fullText[234] = fullText[234][:11] + str(amaxbVal) + fullText[234][15:]
+        fullText[235] = fullText[235][:16] + str(lamaxbVal) + fullText[235][19:]
+        
     if iwall:
         # If an inner wall job is desired, turn off all but isilcom and iwalldust:
         fullText[166] = fullText[166][:-3] + '0' + fullText[166][-2:]   # IPHOT
@@ -2402,7 +2447,7 @@ class Red_Obs(TTS_Obs):
     
     """
     
-    def dered(self, Av, Av_unc, law, picklepath, flux=1, lpath=edgepath, err_prop=1):
+    def dered(self, Av, Av_unc, law, picklepath, flux=1, lpath=edgepath, err_prop=1, UV = 0):
         """
         Deredden the spectra/photometry present in the object, and then convert to TTS_Obs structure.
         This function is adapted from the IDL procedure 'dered_calc.pro' (written by Melissa McClure).
@@ -2419,7 +2464,11 @@ class Red_Obs(TTS_Obs):
         lpath: Where the 'ext_laws.pkl' file is located. I suggest hard coding it as 'edgepath'.
         err_prop: BOOLEAN -- if True (1), will propagate the uncertainty of your photometry with the
                   uncertainty in your Av. Otherwise, it will not.
-        
+        UV: Uses dereddening law from Whittet et al. 2004 based on the extinction towards HD 29647 
+            for wavelengths between 0.125-9.33 microns.
+            NOTE: This is ONLY useful for stars extincted by diffuse media, with RV = 3.1 (MATHIS LAW)
+            
+            
         OUTPUT
         There will be a pickle file called '[self.name]_obs.pkl' in the path provided in picklepath. If
         there is already an obs pickle file there, it will add an integer to the name to differentiate
@@ -2496,9 +2545,64 @@ class Red_Obs(TTS_Obs):
 
         for specKey in self.spectra.keys():
             extInterpolated = np.interp(self.spectra[specKey]['wl'], wave_law, ext_law) # Interpolated ext.
+            
+            #If the UV flag is on, replace the extinction law between 0.125 - .33 microns with a different law
+            if UV == True:
+                
+                #Ensure that you are using the Rv = 3.1 Mathis law
+                if law != 'mathis90_rv3.1' and law != 'mkm09_rv3':
+                    raise ValueError('UV dereddening mode for use only with the low extinction laws (mathis90_rv3.1 and mkm09_rv3)')
+                
+                #Covert wavelength to 1/microns
+                x = self.spectra[specKey]['wl'] ** (-1)
+                
+                #Define the valid range (3-8 (micron)^-1)
+                UVrange = np.where((x > 3) & (x < 8))
+                
+                # If the range does contain some points in the right wavelength range, calculate the new extinction law there
+                if len(UVrange[0]) != 0:
+                
+                    #Because this function only works for diffuse regions, forced to use an Rv of 3.1 (common interstellar value)
+                    Rv = 3.1
+                    
+                    # Define the extinction parameters (HD 29647, Table 1, Whittet et al. 2004)
+                    # Functional form of the extinction from Fitzpatrick + Massa (1988, 1990)
+                    c1 = 0.005
+                    c2 = 0.813
+                    c3 = 3.841
+                    c4 = 0.717
+                    x0 = 4.650
+                    gamma = 1.578
+                    
+                    #Calculate the extinction at each wavelength in terms of Alambda/Av
+                    #Uses parametrization set up by Fitzpatrick + Massa (1988, 1990)
+                    
+                    #Drude function at x0 with width gamma
+                    D = (x**2) / ((x**2 - x0**2)**2 + gamma**2*x**2) 
+                    #Polynomial representing far UV rise
+                    F = 0.5392*(x-5.9)**2 + 0.0564*(x-5.9)**3
+                    F[np.where(x<5.9)] = 0
+                    
+                    #Calculate A_UV and truncate outside the valid range (3-8 (micron)^-1)
+                    ext_UV_all = 1 + (c1 + c2*x + c3*D + c4*F)/Rv
+                    
+                    ext_UV = ext_UV_all[UVrange[0]]
+                    
+                    #Convert from Alam/Av to Alam/Aj to be consitant with extInterpolated
+                    ext_UV_j = ext_UV * AvoAj
+                    
+                    #Replace the old values of extinction with the new ones
+                    extInterpolated[UVrange[0]] = ext_UV_j
+                    
+                else:
+                    pass
+            
+            
             A_lambda        = extInterpolated * (A_object / AvoAj)
             spec_flux       = np.float64(self.spectra[specKey]['lFl']*10.0**(0.4*A_lambda))
-
+            
+            
+            
             if 'specErr' in self.spectra[specKey].keys():
                 spec_unc    = np.float64(spec_flux*np.sqrt(((self.spectra[specKey]['specErr']/self.spectra[specKey]['lFl'])\
                                          **2.) + (((0.4*math.log(10)*extInterpolated*Av_unc)/(AvoAj))**2.)) )
@@ -2517,11 +2621,65 @@ class Red_Obs(TTS_Obs):
             #    spec_unc    = spec_unc  * self.spectra[specKey]['wl']# * 1e-4
             #if spec_nod != None:
             #    spec_nod    = spec_nod  * self.spectra[specKey]['wl']# * 1e-4
+            
             deredObs.add_spectra(specKey, self.spectra[specKey]['wl'], spec_flux, spec_err=spec_unc, nod_err=spec_nod)
         
         # Spectra are done, onwards to photometry:
         for photKey in self.photometry.keys():
             extInterpolated = np.interp(self.photometry[photKey]['wl'], wave_law, ext_law)
+            
+            #If the UV flag is on, replace the extinction law between 0.125 - .33 microns with a different law
+            if UV == True:
+                
+                #Ensure that you are using the Rv = 3.1 Mathis law
+                if law != 'mathis90_rv3.1' and law != 'mkm09_rv3':
+                    raise ValueError('UV dereddening mode for use only with the low extinction laws (mathis90_rv3.1 and mkm09_rv3)')
+                
+                #Covert wavelength to 1/microns
+                x = self.photometry[photKey]['wl'] ** (-1)
+                
+                #Define the valid range (3-8 (micron)^-1)
+                UVrange = np.where((x > 3) & (x < 8))
+                
+                # If the range does contain some points in the right wavelength range, calculate the new extinction law there
+                if len(UVrange[0]) != 0:
+                
+                    #Because this function only works for diffuse regions, forced to use an Rv of 3.1 (common interstellar value)
+                    Rv = 3.1
+                    
+                    # Define the extinction parameters (HD 29647, Table 1, Whittet et al. 2004)
+                    # Functional form of the extinction from Fitzpatrick + Massa (1988, 1990)
+                    c1 = 0.005
+                    c2 = 0.813
+                    c3 = 3.841
+                    c4 = 0.717
+                    x0 = 4.650
+                    gamma = 1.578
+                    
+                    #Calculate the extinction at each wavelength in terms of Alambda/Av
+                    #Uses parametrization set up by Fitzpatrick + Massa (1988, 1990)
+                    
+                    #Drude function at x0 with width gamma
+                    D = (x**2) / ((x**2 - x0**2)**2 + gamma**2*x**2) 
+                    #Polynomial representing far UV rise
+                    F = 0.5392*(x-5.9)**2 + 0.0564*(x-5.9)**3
+                    F[np.where(x<5.9)] = 0
+                    
+                    #Calculate A_UV and truncate outside the valid range (3-8 (micron)^-1)
+                    ext_UV_all = 1 + (c1 + c2*x + c3*D + c4*F)/Rv
+                    
+                    ext_UV = ext_UV_all[UVrange[0]]
+                    
+                    #Convert from Alam/Av to Alam/Aj to be consitant with extInterpolated
+                    ext_UV_j = ext_UV * AvoAj
+                    
+                    #Replace the old values of extinction with the new ones
+                    extInterpolated[UVrange[0]] = ext_UV_j
+                    
+                    
+                else:
+                    pass
+            
             A_lambda        = extInterpolated * (A_object / AvoAj)
             if flux:
                 photcorr    = self.photometry[photKey]['lFl'] / (self.photometry[photKey]['wl']*1e-4)
@@ -2551,7 +2709,9 @@ class Red_Obs(TTS_Obs):
             except TypeError:
                 pass
             deredObs.add_photometry(photKey, self.photometry[photKey]['wl'], phot_dered, errors=phot_err, ulim=ulimVal)
-                
+            
+
+            
         # Now that the new TTS_Obs object has been created and filled in, we must save it:
         deredObs.SPPickle(picklepath=picklepath)
         
