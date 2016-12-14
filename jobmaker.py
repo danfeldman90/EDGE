@@ -44,19 +44,19 @@ jobnumstart = 1
 
 #Define parameters to feed into file, must be filled with at least 1 value
 #Want to check that the values for amaxs and epsilon are possible in the sample job file
-amaxs   = [0.05,0.1,1]
+amaxs   = [0.05]
 epsilon = [.1]
 mstar   = [0.57]
-tstar   = [3850]
+tstar   = [3850, 4000, 4500]
 rstar   = [.66]
-dist    = [110, 150]
+dist    = [110]
 mdot    = [1e-9]
 mdotstar= [1e-9]
 tshock  = [8000]
 alpha   = [0.01]
 mui     = [.5]
 rdisk   = [300]
-temp    = [200,500,800,1100,1400]
+temp    = [200]
 altinh  = [1]
 
 fracolive = [1]

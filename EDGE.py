@@ -186,7 +186,7 @@ def convertJy(value, wavelength):
     
     INPUTS
     value: A flux value in the units of Jy.
-    wavelength: The corresponding wavelength value (or perhaps a central wavelength).
+    wavelength: The corresponding wavelength value in microns (or perhaps a central wavelength).
     
     OUTPUT
     flux: The flux value in units of erg s-1 cm-2.
@@ -1988,7 +1988,7 @@ class PTD_Model(TTS_Model):
                 the data attribute under the key 'total'. This also differs from TTS_Model.
     """
     
-    def dataInit(self, altname=None, jobw=None, highWall=0, **searchKwargs):
+    def dataInit(self, altname=None, jobw=None, highWall=0, wallpath = '', **searchKwargs):
         """
         Initialize data attributes for this object using nested dictionaries:
         wl is the wavelength (corresponding to all three flux arrays). Phot is the stellar photosphere emission.
@@ -2016,10 +2016,18 @@ class PTD_Model(TTS_Model):
             
             # The case in which you supplied the job number of the inner wall:
             if altname == None:
-                fitsname  = self.dpath + self.name + '_' + jobw + '.fits'
+                if wallpath == None:
+                    fitsname  = self.dpath + self.name + '_' + jobw + '.fits'
+                if wallpath != None:
+                    fitsname  = wallpath + self.name + '_' + jobw + '.fits'
+                    
                 HDUwall   = fits.open(fitsname)
             else:
-                fitsname  = self.dpath + altname + '_' + jobw + '.fits'
+                if wallpath == None:
+                    fitsname  = self.dpath + altname + '_' + jobw + '.fits'
+                if wallpath != None:
+                    fitsname  = wallpath + altname + '_' + jobw + '.fits'
+                
                 HDUwall   = fits.open(fitsname)
             
             # Make sure the inner wall job you supplied is, in fact, an inner wall.
@@ -2406,7 +2414,7 @@ class TTS_Obs(object):
                 self.ulim.append(scope)                                     # If upper limit, append metadata to ulim attribute list.
         return
     
-    def SPPickle(self, picklepath):
+    def SPPickle(self, picklepath, clob = False):
         """
         Saves the object as a pickle. Damn it Jim, I'm a doctor not a pickle farmer!
         
@@ -2415,6 +2423,8 @@ class TTS_Obs(object):
         
         INPUTS
         picklepath: The path where you will save the pickle. I recommend datapath for simplicity.
+        clob: boolean, if set to True, will clobber the old pickle
+        
         
         OUTPUT:
         A pickle file of the name [self.name]_obs.pkl in the directory provided in picklepath.
@@ -2425,7 +2435,7 @@ class TTS_Obs(object):
         outname         = self.name + '_obs.pkl'
         count           = 1
         while 1:
-            if outname in pathlist:
+            if outname in pathlist and clob == False:
                 if count == 1:
                     print('SPPICKLE: Pickle already exists in directory. For safety, will change name.')
                 countstr= numCheck(count)
@@ -2447,7 +2457,7 @@ class Red_Obs(TTS_Obs):
     
     """
     
-    def dered(self, Av, Av_unc, law, picklepath, flux=1, lpath=edgepath, err_prop=1, UV = 0):
+    def dered(self, Av, Av_unc, law, picklepath, flux=1, lpath=edgepath, err_prop=1, UV = 0, clob = False):
         """
         Deredden the spectra/photometry present in the object, and then convert to TTS_Obs structure.
         This function is adapted from the IDL procedure 'dered_calc.pro' (written by Melissa McClure).
@@ -2713,16 +2723,18 @@ class Red_Obs(TTS_Obs):
 
             
         # Now that the new TTS_Obs object has been created and filled in, we must save it:
-        deredObs.SPPickle(picklepath=picklepath)
+        deredObs.SPPickle(picklepath=picklepath, clob = clob)
         
         return
     
-    def SPPickle(self, picklepath):
+    def SPPickle(self, picklepath, clob = False):
         """
         The new version of SPPickle, different so you can differentiate between red and dered pickles.
         
         INPUT
         picklepath: The path where the new pickle file will be located.
+        clob: boolean, if set to True, will clobber the old pickle
+        
         
         OUTPUT
         A new pickle file in picklepath, of the name [self.name]_red.pkl
@@ -2733,7 +2745,7 @@ class Red_Obs(TTS_Obs):
         outname         = self.name + '_red.pkl'
         count           = 1
         while 1:
-            if outname in pathlist:
+            if outname in pathlist and clob == False:
                 if count == 1:
                     print('SPPICKLE: Pickle already exists in directory. For safety, will change name.')
                 countstr= numCheck(count)

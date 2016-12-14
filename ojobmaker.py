@@ -31,26 +31,26 @@ Written by Connor Robinson 6/20/16
 
 #Where you want the parameter file and the jobfiles to be placed
 #Also must be the location of the sample job file
-gridpath = '/Users/Connor/Desktop/Research/iceline/omodel/'
+gridpath = '/Users/Connor/Desktop/Research/amanda/'
 
 #Tag that you can add to make the parameter file identifiable for a given run
 #Can leave it blank if you don't care. 
-paramfiletag = 'grid_4_'
+paramfiletag = 'test'
 
 #What number to start counting from, must be an integer 
-jobnumstart = 54
+jobnumstart = 1
 
 #Define parameters to feed into file, must be filled with at least 1 value
 #Want to check that the values for amaxs and epsilon are possible in the sample job file
 
-amax      = [1.0, 5.0, 10]
-tstar     = [4200]
-rstar     = [1.47]
-dist      = [73]
-mui       = [.833]
-rout      = [15.0]
-rin       = [.1, .2]
-tau       = [1.0, 1.5, 2.0]
+amax      = [1.0]
+tstar     = [5035]
+rstar     = [1.38]
+dist      = [86]
+mui       = [.82]
+rout      = [170.0]
+rin       = [80]
+tau       = [0.035]
 power     = [0]
 fudgeorg  = [1]
 fudgetroi = [0.000001]
@@ -60,7 +60,7 @@ fracforst = [0.000001]
 fracamc   = [0.001]
 
 #No need to add an underscore/jobnumber, the script will do that for you.
-labelend = 'V4046Sgr'
+labelend = 'MPMus'
 
 #***********************************************
 #Unlikly you need to change anything below here.
