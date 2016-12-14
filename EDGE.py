@@ -1,17 +1,6 @@
 #!/usr/bin/env python
 # Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
-# Last updated: 12/06/15 by Dan
-
-#---------------------------------------------IMPORT RELEVANT MODULES--------------------------------------------
-import numpy as np
-import matplotlib.pyplot as plt
-#from astropy.io import ascii
-from astropy.io import fits
-import scipy.interpolate as sinterp
-#from matplotlib.backends.backend_pdf import PdfPages
-import os#!/usr/bin/env python
-# Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
-# Last updated: 12/06/15 by Dan
+# Last updated: 12/08/16 by Dan
 
 #---------------------------------------------IMPORT RELEVANT MODULES--------------------------------------------
 import numpy as np
@@ -23,22 +12,22 @@ import scipy.interpolate as sinterp
 import os
 import itertools
 import math
-import _pickle as cPickle
+import cPickle
 import pdb
 
 #----------------------------------------------PLOTTING PARAMETERS-----------------------------------------------
 # Regularizes the plotting parameters like tick sizes, legends, etc.
 plt.rc('xtick', labelsize='medium')
 plt.rc('ytick', labelsize='medium')
-#plt.rc('text', usetex=True)
+plt.rc('text', usetex=True)
 plt.rc('legend', fontsize=10)
 plt.rc('axes', labelsize=15)
 plt.rc('figure', autolayout=True)
 
 #-----------------------------------------------------PATHS------------------------------------------------------
 # Folders where model output data and observational data can be found:
-edgepath        = '/Users/Connor/Desktop/Research/diad/EDGE/'
-datapath        = '/Users/Connor/Desktop/Research/iceline/data/'
+edgepath        = '/Users/danfeldman/Python_Code/EDGE/'
+datapath        = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/Models/CVSO109PT2/'
 #figurepath      = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/Look_SEDs/CVSO107/'
 figurepath      = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/Models/Full_CVSO_Grid/CVSO58_sil/'
 shockpath       = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/ob1bspectra/'
@@ -141,6 +130,59 @@ def deci_to_time(ra=None, dec=None):
     
     return new_ra, new_dec
 
+def time_to_deci(ra='', dec=''):
+    """
+    Converts arc time coordinates of ra and dec into degree values. Adapted from BDNYC
+    code written by Joe Filippazzo.
+    
+    INPUTS
+    ra: The string coordinates of right ascension.
+    dec: The string coordinates of declination.
+    
+    OUTPUTS
+    RA: The converted RA.
+    DEC: The converted dec.
+    """
+    
+    RA, DEC, rs, ds = '', '', 1, 1
+    if dec:
+        D, M, S     = [float(i) for i in dec.split()]
+        if str(D)[0] == '-':
+            ds, D   = -1, abs(D)
+        deg = D + (M/60) + (S/3600)
+        DEC = '{0}'.format(deg*ds)
+    
+    if ra:
+        H, M, S     = [float(i) for i in ra.split()]
+        if str(H)[0] == '-':
+            rs, H   = -1, abs(H)
+        deg = (H*15) + (M/4) + (S/240)
+        RA  = '{0}'.format(deg*rs)
+    
+    if ra and dec:
+        return (RA, DEC)
+    else:
+        return RA or DEC
+
+def calcAngularDist(coords1, coords2):
+    """
+    Calculates the angular distance between two points on the sky. Inputs should be in degrees.
+    
+    INPUTS
+    coords1: A list containing the RA and Dec for the first position. Should be [RA, Dec]
+    coords2: A list containing the RA and Dec for the second position. Also [RA, Dec]
+    
+    OUTPUT
+    angDist: The angular distance in degrees.
+    """
+    
+    deltaRA = float(coords1[0]) - float(coords2[0])
+    deltaDEC= float(coords1[1]) - float(coords2[1])
+    decRads = float(coords1[0])*np.pi/180.              # Dec in radians
+    angDist = math.sqrt((deltaRA*math.cos(decRads)**2.0) + (deltaDEC**2.0))
+    
+    return angDist
+
 def linearInterp(x0, x1, x2, y1, y2, y1err, y2err):
     """
     Linearly interpolates between two values assuming the y values have errors.
@@ -186,7 +228,7 @@ def convertJy(value, wavelength):
     
     INPUTS
     value: A flux value in the units of Jy.
-    wavelength: The corresponding wavelength value in microns (or perhaps a central wavelength).
+    wavelength: The corresponding wavelength value (or perhaps a central wavelength).
     
     OUTPUT
     flux: The flux value in units of erg s-1 cm-2.
@@ -197,7 +239,7 @@ def convertJy(value, wavelength):
     
     return flux
 
-def convertMag(value, band, jy='False', getwl='False'):
+def convertMag(value, band, jy='False'):
     """
     Converts a magnitude into a flux in erg s-1 cm-2. To use this for an array, use np.vectorize().
     Currently handles:
@@ -223,10 +265,6 @@ def convertMag(value, band, jy='False', getwl='False'):
     OUTPUTS
     flux: The flux value in erg s-1 cm-2.
     fluxJ: The flux value in Jy.
-    
-    MODIFICATIONS BY CONNOR:
-        Added ability to return the wavelength alongside the flux
-    
     """
     
     # First convert to Janskys:
@@ -311,65 +349,14 @@ def convertMag(value, band, jy='False', getwl='False'):
     elif band.upper()   == 'W4':
         fluxJ       = 8.36 * (10.0**(value / -2.5))
         wavelength  = 22.09
-    elif band.upper() == 'GAIAG':
-        fluxJ       = 3488 * (10.0**(value / -2.5))
-        wavelength = .550
-        
-        
     else:
         raise ValueError('CONVERTMAG: Unknown Band given. Cannot convert.')
     
     if jy == 'False':
         # Next, convert to flux from Janskys:
-        flux        = convertJy(fluxJ, wavelength)  # Ok, so maybe this is a dependent function. Shhhhhhh! :)
-        
-        if getwl == True:
-            return flux, wavelength
-        else:
-            return flux
-    
-    if getwl == True:
-        return fluxJ, wavelength
-    else:
-        return fluxJ
-
-def convertMagErr(flux, magerr):
-    """
-    Converts magnitude errors into flux errors
-    
-    INPUT:
-        flux: Flux values in any flux units (Doensn't matter which type, based on fractional uncertainty)
-        magerr: Error in magnitudes
-    
-    OUTPUT:
-        fluxerr: Error in the flux units
-    
-    """
-    
-    fluxerr = np.abs(flux*(10**(-magerr/2.5) - 1))
-    return fluxerr
-    
-
-
-def numCheck(num, high=0):
-    """
-    Takes a number between 0 and 9999 and converts it into a 3 or 4 digit string. E.g., 2 --> '002', 12 --> '012'
-    
-    INPUT
-    num: A number between 0 and 9999. If this is a float, it will still work, but it will chop off the decimal.
-    high: BOOLEAN -- if True (1), output is forced to be a 4 digit string regardless of the number.
-        
-    OUTPUT
-    numstr: A string of 3 or 4 digits, where leading zeroes fill in any spaces.
-    """
-    
-    if num > 9999 or num < 0:
-        raise ValueError('Number too small/large for string handling!')
-    if num > 999 or high == 1: 
-        numstr          = '%04d' % num
-    else:
-        numstr          = '%03d' % num
-    return numstr
+        flux        = convertJy(fluxJ, wavelength)              # Ok, so maybe this is a dependent function...
+        return flux                                             # Shhhhhhh! :)
+    return fluxJ
 
 def convertSptype(spT):
     """
@@ -403,7 +390,7 @@ def convertSptype(spT):
         spT_float = 50.0 + sub_val
     elif spT[0] == 'K':
         spT_float = 60.0 + sub_val
-        if sub_val > 7.0:
+        if sub_val >= 8.0:
             print('WARNING: Spectral type is greater than K7 but less than M0...not physical.')
     elif spT[0] == 'M':
         spT_float = 68.0 + sub_val
@@ -427,16 +414,47 @@ def apparent_to_absolute(d_pc, mag):
     absMag = mag - 5.0 * math.log10(d_pc / 10.0)
     return absMag
 
+def diskMassCalc(lFl, wl, temp, dist):
+    """
+    Calculates the disk mass based on a sub-mm flux value. Needs to be in Rayleigh-Jeans
+    regime or else it doesn't work. This equation assumes implicity that the gas-to-dust
+    ratio is 100. NOTE: THIS IS UNTESTED FOR ACCURACY.
+    
+    INPUTS
+    lFl: The flux value at the given wavelength, in units of erg s-1 cm-2
+    wl: The wavelength of the band. It needs to be sufficiently in Rayleigh-Jeans regime. This
+        should be given in microns.
+    temp: The temperature of the dust in Kelvin.
+    dist: The distance to your object in parsecs.
+    
+    OUTPUT
+    dmass: The disk mass in solar masses.
+    """
+    
+    # Define the constants and convert to CGS units:
+    K       = 1.381e-16             # Boltzmann constant in cgs
+    C       = 3.0e10                # Speed of light in cgs
+    NUM     = 0.5e13                # Extra constant needed for equation in units of Hz
+    SOLMASS = 1.989e33              # Solar mass in cgs
+    wl_cgs  = wl / 1e4              # Wavelength conversion from microns to cm
+    d_cgs   = dist * 3.09e18        # Distance to object in cgs
+    
+    # Calculate the disk mass using equation from Williams & Cieza 2011:
+    dmass   = (NUM * lFl * (d_cgs**2.0) * (wl_cgs**4.0)) / (K * temp * (C**2.0))
+    dmass   /= (SOLMASS)            # Convert from cgs to solar masses
+    
+    return dmass
+
 #----------------------------------------------DEPENDENT FUNCTIONS-----------------------------------------------
 # A function is considered dependent if it utilizes either the above independent functions, or the classes below.
-def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1, leg=1, public=0):
+def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, msize=7.0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1, leg=1, public=0):
     """
     Creates a plot of a model and the observations for a given target.
     
     INPUTS
     model: The object containing the target's model. Should be an instance of the TTS_Model class. This is an optional input.
     obs: The object containing the target's observations. Should be an instance of the TTS_Obs class.
-    jobn: The "job number." This is meaningless for observation-only plots, but if you save the file, we require a number.
+    jobn: The job number you want to use when you save the plot, if different than the one listed in the model.
     save: BOOLEAN -- If 1 (True), will save the plot in a pdf file. If 0 (False), will output to screen.
     savepath: The path that a saved PDF file will be written to. This is defaulted to the hard-coded figurepath at top of this file.
     colkeys: An optional input array of color strings. This can be used to overwrite the normal color order convention. Options include:
@@ -466,26 +484,33 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
     # Let the plotting begin!
     if save == 0:
         plt.clf()
+        #pass
     plt.figure(1)
     
     # Plot the spectra first:
     for sind, skey in enumerate(speckeys):
-        plt.plot(obs.spectra[skey]['wl'], obs.spectra[skey]['lFl'], color=colors[colkeys[sind]] , linewidth=2.0, label=skey)
+        if 'err' not in obs.spectra[skey].keys():
+            plt.plot(obs.spectra[skey]['wl'], obs.spectra[skey]['lFl'], 'o', mew=1.0, markersize=3, \
+                     mfc=colors[colkeys[sind]], mec= colors[colkeys[sind]], label=skey)
+        else:
+            plt.errorbar(obs.spectra[skey]['wl'], obs.spectra[skey]['lFl'], yerr=obs.spectra[skey]['err'], \
+                         mec=colors[colkeys[sind]], fmt='o', mfc=colors[colkeys[sind]], mew=1.0, markersize=2, \
+                         ecolor=colors[colkeys[sind]], elinewidth=0.5, capsize=1.0, label=skey)
     
     # Next is the photometry:
     for pind, pkey in enumerate(photkeys):
         # If an upper limit only:
         if pkey in obs.ulim:
             plt.plot(obs.photometry[pkey]['wl'], obs.photometry[pkey]['lFl'], 'v', \
-                     color=colors[colkeys[pind+len(speckeys)]], markersize=7, label=pkey, zorder=pind+10)
+                     color=colors[colkeys[pind+len(speckeys)]], markersize=msize, label=pkey, zorder=pind+10)
         # If not an upper limit, plot as normal:
         else:
             if 'err' not in obs.photometry[pkey].keys():
                 plt.plot(obs.photometry[pkey]['wl'], obs.photometry[pkey]['lFl'], 'o', mfc='w', mec=colors[colkeys[pind+len(speckeys)]], mew=1.0,\
-                         markersize=7, label=pkey, zorder=pind+10)
+                         markersize=msize, label=pkey, zorder=pind+10)
             else:
                 plt.errorbar(obs.photometry[pkey]['wl'], obs.photometry[pkey]['lFl'], yerr=obs.photometry[pkey]['err'], \
-                             mec=colors[colkeys[pind+len(speckeys)]], fmt='o', mfc='w', mew=1.0, markersize=7, \
+                             mec=colors[colkeys[pind+len(speckeys)]], fmt='o', mfc='w', mew=1.0, markersize=msize, \
                              ecolor=colors[colkeys[pind+len(speckeys)]], elinewidth=2.0, capsize=3.0, label=pkey, zorder=pind+10)
     # Publication style?
     if public:
@@ -563,7 +588,7 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
                     try:
                         diskflux = model.data['owall'] + model.data['disk']
                     except KeyError:
-                        print('LOOK: Error, tried to combine outer wall and disk components but one component is missing!')
+                        print 'LOOK: Error, tried to combine outer wall and disk components but one component is missing!'
                     else:    
                         plt.plot(model.data['wl'], diskflux, ls='--', c='#8B0A1E', linewidth=2.0, label='Outer Disk')
             else:
@@ -612,14 +637,24 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
     plt.xlabel(r'${\rm {\bf \lambda}\; (\mu m)}$')
     plt.title(obs.name.upper())
     if leg:
-        plt.legend(loc=3)
+        plt.legend(loc=3, numpoints=1)
     
     # Should we save or should we plot?
     if save:
-        if type(jobn) != int:
-            raise ValueError('LOOK: Jobn must be an integer if you wish to save the plot.')
-        jobstr          = numCheck(jobn)
-        plt.savefig(savepath + obs.name.upper() + '_' + jobstr + '.pdf', dpi=250)
+        if jobn == None:
+            try:
+                jobstr      = str(model.jobn).zfill(model.fill)
+            except AttributeError:
+                plt.savefig(savepath + obs.name.upper() + '_obsdata' + '.pdf', dpi=300)
+            else:
+                plt.savefig(savepath + obs.name.upper() + '_' + jobstr + '.pdf', dpi=300)
+        else:
+            try:
+                jobstr      = str(jobn).zfill(model.fill)
+            except AttributeError:
+                plt.savefig(savepath + obs.name.upper() + '_obsdata' + '.pdf', dpi=300)
+            else:
+                plt.savefig(savepath + obs.name.upper() + '_' + jobstr + '.pdf', dpi=300)
         plt.clf()
     else:
         plt.show()
@@ -629,6 +664,7 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
 def searchJobs(target, dpath=datapath, **kwargs):
     """
     Searches through the job file outputs to determine which jobs (if any) matches the set of input parameters.
+    NOTE: THIS MIGHT BE DEFUNCT
     
     INPUTS
     target: The name of the target we're checking against (e.g., cvso109, DMTau, etc.).
@@ -672,7 +708,7 @@ def searchJobs(target, dpath=datapath, **kwargs):
     
     return job_matches
 
-def loadPickle(name, picklepath=datapath, num=None, red=0):
+def loadPickle(name, picklepath=datapath, num=None, red=0, fill=3):
     """
     Loads in a pickle saved from the TTS_Obs class.
     
@@ -690,12 +726,12 @@ def loadPickle(name, picklepath=datapath, num=None, red=0):
             # Check if there is more than one
             flist           = filelist(picklepath)
             if (name + '_red_1.pkl') in flist:
-                print('LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!')
+                print 'LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!'
             f               = open(picklepath+name+'_red.pkl', 'rb')
             pickle          = cPickle.load(f)
             f.close()
         elif num != None:
-            f               = open(picklepath+name+'_red_'+numCheck(num)+'.pkl', 'rb')
+            f               = open(picklepath+name+'_red_'+str(num)+'.pkl', 'rb')
             pickle          = cPickle.load(f)
             f.close()
         return pickle
@@ -703,25 +739,25 @@ def loadPickle(name, picklepath=datapath, num=None, red=0):
         if num == None:
             # Check if there is more than one
             flist           = filelist(picklepath)
-            if (name + '_obs_1.pkl') in flist:
-                print('LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!')
+            if (name + '_obs_001.pkl') in flist:
+                print 'LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!'
             f               = open(picklepath+name+'_obs.pkl', 'rb')
             pickle          = cPickle.load(f)
             f.close()
         elif num != None:
-            f               = open(picklepath+name+'_obs_'+numCheck(num)+'.pkl', 'rb')
+            f               = open(picklepath+name+'_obs_'+str(num).zfill(fill)+'.pkl', 'rb')
             pickle          = cPickle.load(f)
             f.close()
         return pickle
 
-def job_file_create(jobnum, path, high=0, iwall=0, **kwargs):
+def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
     """
     Creates a new job file that is used by the D'Alessio Model.
     
     INPUTS
     jobnum: The job number used to name the output job file.
     path: The path containing the sample job file, and ultimately, the output.
-    high: BOOLEAN -- if True (1), output will be jobXXXX instead of jobXXX.
+    fill: Pads the output file such that the name will be jobXXX if 3, jobXXXX if 4, etc.
     iwall: BOOLEAN -- if True (1), output will turn off switches so we just run as inner wall.
     **kwargs: The keywords arguments used to make changes to the sample file. Available
               kwargs include:
@@ -744,7 +780,6 @@ def job_file_create(jobnum, path, high=0, iwall=0, **kwargs):
         fracpyrox - the fractional abundance of amorphous pyroxene
         fracforst - the fractional abundance of crystalline forsterite
         fracent - the fractional abundance of crystalline enstatite
-        lamaxb - string for maximum grain size in the disk midplane (currently accepts '1mm' and '1cm')
         
         Some can still be included, such as dust grain compositions. They just aren't
         currently supported. If any supplied kwargs are unused, it will print at the end.
@@ -980,15 +1015,6 @@ def job_file_create(jobnum, path, high=0, iwall=0, **kwargs):
         enstVal = kwargs['fracent']
         del kwargs['fracent']
         fullText[141] = fullText[141][:20] + str(enstVal) + fullText[141][23:]
-        
-    if 'lamaxb' in kwargs:
-        lamaxbVal=kwargs['lamaxb']
-        del kwargs['lamaxb']
-        amaxdict={'1mm':'1000','1cm':'10000'}
-        amaxbVal = amaxdict[lamaxbVal]
-        fullText[234] = fullText[234][:11] + str(amaxbVal) + fullText[234][15:]
-        fullText[235] = fullText[235][:16] + str(lamaxbVal) + fullText[235][19:]
-        
     if iwall:
         # If an inner wall job is desired, turn off all but isilcom and iwalldust:
         fullText[166] = fullText[166][:-3] + '0' + fullText[166][-2:]   # IPHOT
@@ -999,10 +1025,7 @@ def job_file_create(jobnum, path, high=0, iwall=0, **kwargs):
         fullText[204] = fullText[204][:-3] + '0' + fullText[204][-2:]   # ISEDT
     
     # Once all changes have been made, we just create a new job file:
-    if high:
-        string_num = numCheck(jobnum, high=True)
-    else:
-        string_num  = numCheck(jobnum)
+    string_num  = str(jobnum).zfill(fill)
     newJob      = open(path+'job'+string_num, 'w')
     newJob.writelines(fullText)
     newJob.close()
@@ -1010,18 +1033,18 @@ def job_file_create(jobnum, path, high=0, iwall=0, **kwargs):
     # Lastly, check for unused kwargs that may have been misspelled:
     if len(kwargs) != 0:
         print('JOB_FILE_CREATE: Unused kwargs, could be mistakes:')
-        print(kwargs.keys())
+        print kwargs.keys()
     
     return
     
-def job_optthin_create(jobn, path, high=0, **kwargs):
+def job_optthin_create(jobn, path, fill=3, **kwargs):
     """
     Creates a new optically thin dust job file.
     
     INPUTS
     jobn: The job number used to name the output job file.
     path: The path containing the sample job file, and ultimately, the output.
-    high: BOOLEAN -- if True (1), output will be job_optthinXXXX instead of job_optthinXXX.
+    fill: Pads the output file such that the name will be job_optthinXXX if 3, job_optthinXXXX if 4, etc
     **kwargs: The keywords arguments used to make changes to the sample file. Available
               kwargs include:
         amax - maximum grain size
@@ -1032,8 +1055,8 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
         rout - the outer radius
         rin - the inner radius
         labelend - the labelend of all output files when job file is run
-`        tau - optical depth, I think
-`        power - no idea what this one is
+        tau - optical depth, I think
+        power - no idea what this one is
         fudgeorg - don't know this one either
         fudgetroi - or this one...should probably look this up
         fracsil - fraction of silicates by mass
@@ -1130,7 +1153,6 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
         else:
             raise ValueError('JOB_OPTTHIN_CREATE: Invalid input for AMAX!')
     
-    
     # Now we can cycle through the easier changes desired:    
     if 'labelend' in kwargs:                        # Labelend for output files
         labelVal = kwargs['labelend']
@@ -1139,11 +1161,11 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
     if 'tstar' in kwargs:                           # Stellar effective temperature
         tstarVal = kwargs['tstar']
         del kwargs['tstar']
-        fullText[8] = fullText[8][:11] + str(tstarVal) + fullText[8][-42:]
+        fullText[8] = fullText[8][:10] + str(tstarVal) + fullText[8][-42:]
     if 'rstar' in kwargs:                           # Stellar radius (solar units)
         rstarVal = kwargs['rstar']
         del kwargs['rstar']
-        fullText[9] = fullText[9][:11] + str(rstarVal) + fullText[9][-43:]
+        fullText[9] = fullText[9][:10] + str(rstarVal) + fullText[9][-43:]
     if 'dist' in kwargs:                            # Distance (in pc)
         distVal = kwargs['dist']
         del kwargs['dist']
@@ -1194,10 +1216,7 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
         fullText[24] = fullText[24][:13] + str(famcVal) + fullText[24][-2:]
     
     # Once all changes have been made, we just create a new optthin job file:
-    if high:
-        string_num = numCheck(jobn, high=True)
-    else:
-        string_num  = numCheck(jobn)
+    string_num  = str(jobn).zfill(fill)
     newJob      = open(path+'job_optthin'+string_num, 'w')
     newJob.writelines(fullText)
     newJob.close()
@@ -1205,7 +1224,7 @@ def job_optthin_create(jobn, path, high=0, **kwargs):
     # Lastly, check for unused kwargs that may have been misspelled:
     if len(kwargs) != 0:
         print('JOB_OPTTHIN_CREATE: Unused kwargs, could be mistakes:')
-        print(kwargs.keys())
+        print kwargs.keys()
     
     return
 
@@ -1219,6 +1238,9 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0):
     obsNeglect: A list of all the observations keys that you don't wish to be considered.
     wp: The weight option you'd like to use for your photometry's chi2 calculation. The
             weight for the spectra will just be 1 - wp. Default is .5 for each.
+    non_reduce: BOOLEAN -- if True (1), will calculate a normal chi squared (not reduced).
+                If this is the case, the weighting will be 1 for the photometry, and for the
+                spectra will be the number of photometric points / number of spectra points.
     
     OUTPUT
     total_chi: The value for the reduced chi-squared test on the model.
@@ -1235,6 +1257,17 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0):
         if obsKey in obsNeglect:
             continue                            # Skip any data you want to neglect
         if obsKey in obj.ulim:
+            # Test for rejection:
+            nearby = np.where(model.data['wl'] == obj.photometry[obsKey]['wl'])[0]
+            if len(nearby):
+                if model.data['total'][nearby] > obj.photometry[obsKey]['lFl']:
+                    return 3.0e5                # Arbitrarily large value.
+            else:
+                nearby  = np.where(model.data['wl'] < obj.photometry[obsKey]['wl'])[0][-1]
+                nearInd = np.array([nearby, nearby+1])
+                valComp = np.interp(obj.photometry[obsKey]['wl'], model.data['wl'][nearInd], model.data['total'][nearInd])
+                if valComp > obj.photometry[obsKey]['lFl']:
+                    return 3.0e5
             continue                            # Skip any upper limits
         wavelength = np.append(wavelength, obj.photometry[obsKey]['wl'])
         flux       = np.append(flux, obj.photometry[obsKey]['lFl'])
@@ -1272,10 +1305,13 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0):
     
     # Interpolate the model so the observations and model are on the same grid:
     modelFlux      = np.interp(wavelength, model.data['wl'], model.data['total'])
-    
+    #pdb.set_trace()
     # Calculate the chi2:
     chi            = (flux - modelFlux) / (errs*flux)
-    rchi_sqP       = np.sum(chi*chi) / (len(chi) - 1)
+    if non_reduce:
+        rchi_sqP   = np.sum(chi*chi)
+    else:
+        rchi_sqP   = np.sum(chi*chi) / (len(chi) - 1)
     
     # Now, do the same thing but for the spectra:
     # Initialize empty arrays
@@ -1291,7 +1327,7 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0):
         fluxS      = np.append(fluxS, obj.spectra[specKey]['lFl'])
         try:
             # if no error, assume 10%:
-            errsS  = np.append(errsS, np.sqrt(obj.spectra[specKey]['SpecErr']**2.0+obj.spectra[specKey]['NodErr']**2.0))
+            errsS  = np.append(errsS, obj.spectra[specKey]['err']/obj.spectra[specKey]['lFl'])
         except KeyError:
             errsS  = np.append(errsS, np.ones(len(obj.spectra[specKey]['wl']))/10.0)
         finally:
@@ -1314,19 +1350,110 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0):
     
     # Interpolate the model so the observations and model are on the same grid:
     modelFluxS     = np.interp(wavelengthS, model.data['wl'], model.data['total'])
-    
+    #pdb.set_trace()
     # Calculate the chi2:
     chiS           = (fluxS - modelFluxS) / (errsS*fluxS)
     if non_reduce:
-        rchi_sqS   = np.sum(chiS*chiS)
+        IRSlen     = len(obj.spectra['IRS']['wl']) * -1
+        IRSchi     = chiS[IRSlen:]          # Separate the IRS data
+        IRSchi2    = np.sum(IRSchi*IRSchi) * (float(len(chi))/len(IRSchi))
+        nonIRSchi  = chiS[:IRSlen]
+        #rchi_sqS   = np.sum(chiS*chiS)# * (float(len(chi))/len(chiS))
+        nonIRSchi2 = np.sum(nonIRSchi*nonIRSchi) * (float(len(chi))/len(nonIRSchi))
+        #total_chi  = rchi_sqP + rchi_sqS
+        total_chi  = rchi_sqP + IRSchi2 + nonIRSchi2
     else:
         rchi_sqS   = np.sum(chiS*chiS) / (len(chiS) - 1)
-    
-    # Now that I have both values, calculate the total chi squared based on weights:
-    ws        = 1.0 - wp                        # total weights must add to 1
-    total_chi = (wp*rchi_sqP) + (ws*rchi_sqS)
+        ws         = 1.0 - wp                   # total weights must add to 1
+        total_chi  = (wp*rchi_sqP) + (ws*rchi_sqS)
     
     return total_chi                            # Done!
+
+def BIC_Calc(obs, minChi, degFree=6, weight=None, ignoreKeys=[]):
+    """
+    Calculates the Bayesian Information Criteria (BIC) for your given model.
+    
+    INPUTS
+    obs: The observations object you're using for the chi-squared calculation.
+    minChi: The minimum Chi-Squared value obtained from your grid.
+    degFree: The degrees of freedom, i.e., how many model parameters you varied.
+    weight: How to calculate the number of points. Currently supports 'TwicePhot', 'SpectraOnly',
+            and None (the default). 'TwicePhot' counts twice the number of photometric points.
+            'SpectraOnly' counts only the spectral points. The default counts the photometric and
+            spectral points together with no weighting given to either.
+    ignoreKeys: A list containing any keys you want ignored in the point count.
+    
+    OUTPUT
+    bic: The Bayesian Information Criteria (BIC) calculated given the inputs.
+    """
+    # Need to calculate the number of data points being used:
+    if weight == 'TwicePhot':
+        # If TwicePhot, we count twice the number of photometric points for N
+        pointCounter    = 0
+        for key in obs.photometry.keys():
+            if key in ignoreKeys or key in obs.ulim:
+                continue
+            try:
+                pointCounter    += len(obs.photometry[key]['lFl'])
+            except TypeError:   # This error occurs if only one data point present:
+                pointCounter    += 1
+        pointCounter *= 2       # Twice, since the spectra are weighted evenly with photometry
+    elif weight == 'ThricePhot':
+        # If ThricePhot, we count three times the number of photometric points for N
+        pointCounter    = 0
+        for key in obs.photometry.keys():
+            if key in ignoreKeys or key in obs.ulim:
+                continue
+            try:
+                pointCounter    += len(obs.photometry[key]['lFl'])
+            except TypeError:   # This error occurs if only one data point present:
+                pointCounter    += 1
+        pointCounter *= 3       # Three times, once for IRS, once for the rest
+    elif weight == 'CVSO':
+        # If CVSO, we count the number of photometric points for N and add 25
+        pointCounter    = 0
+        for key in obs.photometry.keys():
+            if key in ignoreKeys or key in obs.ulim:
+                continue
+            try:
+                pointCounter    += len(obs.photometry[key]['lFl'])
+            except TypeError:   # This error occurs if only one data point present:
+                pointCounter    += 1
+        pointCounter += 25       # spectra are weighted to be 25
+    elif weight == 'SpectraOnly':
+        # If SpectraOnly, we count the number of spectral points for N
+        pointCounter    = 0
+        for key in obs.spectra.keys():
+            if key in ignoreKeys:
+                continue
+            try:
+                pointCounter    += len(obs.spectra[key]['lFl'])
+            except TypeError:   # This error occurs if only one data point present:
+                pointCounter    += 1
+    elif weight == None:
+        # If no weighting (default), we count all of the points, spectra and photometry
+        pointCounter    = 0
+        for key in obs.photometry.keys():
+            if key in ignoreKeys or key in obs.ulim:
+                continue
+            try:
+                pointCounter    += len(obs.photometry[key]['lFl'])
+            except TypeError:   # This error occurs if only one data point present:
+                pointCounter    += 1
+        for key in obs.spectra.keys():
+            if key in ignoreKeys:
+                continue
+            try:
+                pointCounter    += len(obs.spectra[key]['lFl'])
+            except TypeError:   # This error occurs if only one data point present:
+                pointCounter    += 1
+    else:
+        raise IOError('BIC_CALC: You gave an invalid weighting!')
+    
+    # Now that we have the number of points (N), we can calculate the BIC:    
+    bic = minChi + degFree * np.log(pointCounter)
+    
+    return bic
 
 def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
     """
@@ -1389,19 +1516,19 @@ def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
     
     return float(Teff), lum
 
-def normalize(dataDict, normWL, normlFl, errorArr=None):
+def normalize(dataDict, normWL, normlFl):
     """
     Normalizes a given spectrum of data to the provided normalization wavelength and flux values. Optionally
     normalizes an associated error array.
     
     INPUTS
-    dataDict: The dictionary containing the data to normalize. Will have 'wl' and 'lFl' keys.
+    dataDict: The dictionary containing the data to normalize. Will have 'wl' and 'lFl' keys. 'err' is optional.
     normWL: The wavelength (in same unit as data's wl, typically microns) at which to normalize.
     normlFl: The flux value we are normalizing to at the given normalization wavelength.
-    errorArr: (Optional) The array of errors associated with the flux in dataDict.
     
     OUTPUT
     normFlux: The normalized flux array.
+    normErr: (optional) If errors are included, then this is the normalized errors.
     """
     
     # Find out if/where the normalization wavelength and flux exist in the data:
@@ -1412,10 +1539,10 @@ def normalize(dataDict, normWL, normlFl, errorArr=None):
         # Make sure no NaNs:
         if np.isnan(dataDict['lFl'][normInd]) or np.isnan(dataDict['lFl'][normInd-1]):
             raise ValueError('NORMALIZE: The flux is NaN at the normalization wavelength!')
-        if errorArr is not None:
+        if 'err' in dataDict.keys():
             normVal, normErr = (linearInterp(normWL, dataDict['wl'][normInd-1], dataDict['wl'][normInd],
                                              dataDict['lFl'][normInd-1], dataDict['lFl'][normInd],
-                                             errorArr[normInd-1], errorArr[normInd]))
+                                             dataDict['err'][normInd-1], dataDict['err'][normInd]))
         else:
             normVal, normErr = (linearInterp(normWL, dataDict['wl'][normInd-1], dataDict['wl'][normInd],
                                              dataDict['lFl'][normInd-1], dataDict['lFl'][normInd], 0.0, 0.0))
@@ -1423,22 +1550,21 @@ def normalize(dataDict, normWL, normlFl, errorArr=None):
         if np.isnan(dataDict['lFl'][normInd]):
             raise ValueError('NORMALIZE: The flux is NaN at the normalization wavelength!')
         normVal = dataDict['lFl'][normInd]
-        if errorArr is not None:
-            normErr = errorArr[normInd]
-        else:
-            normErr = 0.0
     
     # Now we normalize the flux:
     normFlux = (dataDict['lFl'] / normVal) * normlFl
     
-    # Normalize the error???
+    # Normalize the error based on percent error:
+    if 'err' in dataDict.keys():
+        normErr  = (dataDict['err']/dataDict['lFl']) * normFlux
+        return normFlux, normErr
     
     return normFlux
 
 def twoWallCombine(name, jobMain, wallNumRange, altinhRange=range(1,5), dpath=datapath, high=0, blueExcess=0):
     """
     For a given object, test out all the best combination of two inner walls for a full disk.
-    
+    THIS IS DEFUNCT
     """
     
     # Open up a file to print the results to:
@@ -1515,12 +1641,13 @@ def MdotCalc(Umag, Rmag, d_pc, Temp, Mstar, Rstar):
     
     # First, calculate the U band magnitude of the photosphere:
     tempMatch     = np.where(temps == Temp)[0]
+    #pdb.set_trace()
     if len(tempMatch) == 0:                         # Is there an exact match? If not, interpolate
         colInterp = np.interp(Temp, temps, colors)
     else:
         colInterp = colors[tempMatch]
     Uphot   = Rmag + colInterp
-    print(colInterp)
+    print colInterp
     # Convert to Absolute Magnitude:
     #uAbsMag = apparent_to_absolute(d_pc, Umag)
     #uPhotAbs= apparent_to_absolute(d_pc, Uphot)
@@ -1553,6 +1680,50 @@ def MdotCalc(Umag, Rmag, d_pc, Temp, Mstar, Rstar):
     Mdot    = (Rstar_m * L_acc / (G*Mstar_kg)) / 0.8 * 3.16e7 / 1.989e30 
     
     return Mdot
+
+def binSpectra(obs, speckeys=[], ppbin=2):
+    """
+    Bin all the spectra in the obs object corresponding to the supplied
+    keys.
+    
+    INPUTS
+    obs: The observations pickle, which should be an instance if TTS_Obs or Red_Obs.
+    speckeys: The keys corresponding to the spectra that should be binned.
+    ppbin: The number of points in a given bin.
+    
+    OUTPUT
+    Though no output is explicitly given, the binned spectra are saved to the observations pickle.
+    """
+    
+    if len(speckeys) == 0:
+        print('BINSPECTRA: No keys were supplied. No binning will occur.')
+    else:
+        for key in speckeys:
+            if key not in obs.spectra.keys():
+                print('BINSPECTRA: ' + str(key) + ' not found in the observations object. Skipping.')
+                continue
+            binnedWL    = np.array([], dtype=float)
+            binnedFlux  = binnedWL.copy()
+            if len(obs.spectra[key]) == 3:
+                binnedErr   = binnedWL.copy()
+            for i in range(len(obs.spectra[key]['wl'])):
+                if i % ppbin != 0:
+                    continue
+                if np.isnan(np.sum(obs.spectra[key]['lFl'][i:i+ppbin])):
+                    continue
+                avgwl   = np.average(obs.spectra[key]['wl'][i:i+ppbin])
+                avgflux = np.average(obs.spectra[key]['lFl'][i:i+ppbin])
+                binnedWL    = np.append(binnedWL, avgwl)
+                binnedFlux  = np.append(binnedFlux, avgflux)
+                if len(obs.spectra[key]) == 3:
+                    avgerr  = np.std(obs.spectra[key]['lFl'][i:i+ppbin])
+                    binnedErr       = np.append(binnedErr, avgerr)
+            obs.spectra[key]['wl']  = binnedWL
+            obs.spectra[key]['lFl'] = binnedFlux
+            if len(obs.spectra[key]) == 3:
+                obs.spectra[key]['err'] = binnedErr
+    
+    return
 
 #---------------------------------------------------CLASSES------------------------------------------------------
 class TTS_Model(object):
@@ -1587,7 +1758,7 @@ class TTS_Model(object):
     enstatit: Enstatite Fractional abundance.
     rin: The inner radius in AU.
     dpath: Path where the data files are located.
-    high: Whether or not the data was part of a 1000+ grid.
+    fill: How many numbers used in the model files (4 = name_XXXX.fits).
     data: The data for each component inside the model.
     extcorr: The self-extinction correction. If not carried out, saved as None.
     new: Whether or not the model was made with the newer version of collate.py.
@@ -1601,7 +1772,7 @@ class TTS_Model(object):
                 the data attribute under the key 'total'.
     """
     
-    def __init__(self, name, jobn, dpath=datapath, high=0):
+    def __init__(self, name, jobn, dpath=datapath, fill=3):
         """
         Initializes instances of this class and loads the relevant data into attributes.
         
@@ -1609,14 +1780,11 @@ class TTS_Model(object):
         name: Name of the object being modeled. Must match naming convention used for models.
         jobn: Job number corresponding to the model being loaded into the object. Again, must match convention.
         full_trans: BOOLEAN -- if 1 (True) will load data as a full or transitional disk. If 0 (False), as a pre-trans. disk.
-        high: BOOLEAN -- if 1 (True), the model file being read in has a 4-digit number string rather than 3-digit string.
+        fill: How many numbers the input model file has (jobXXX vs. jobXXXX, etc.)
         """
         
         # Read in the fits file:
-        if high:
-            stringnum   = numCheck(jobn, high=1)
-        else:
-            stringnum   = numCheck(jobn)                                # Convert jobn to the proper string format
+        stringnum       = str(jobn).zfill(fill)                         # Convert the jobn to the proper format
         fitsname        = dpath + name + '_' + stringnum + '.fits'      # Fits filename, preceeded by the path from paths section
         HDUlist         = fits.open(fitsname)                           # Opens the fits file for use
         header          = HDUlist[0].header                             # Stores the header in this variable
@@ -1647,7 +1815,7 @@ class TTS_Model(object):
         self.enstatit   = header['ENSTATIT']
         self.rin        = header['RIN']
         self.dpath      = dpath
-        self.high       = high
+        self.fill       = fill
         self.extcorr    = None
         try:
             self.mdotstar = header['MDOTSTAR']
@@ -1668,7 +1836,7 @@ class TTS_Model(object):
         verbose: BOOLEAN -- if 1 (True), will print out warnings about missing components.
         """
         
-        stringnum    = numCheck(self.jobn, high=self.high)
+        stringnum    = str(self.jobn).zfill(self.fill)
         fitsname     = self.dpath + self.name + '_' + stringnum + '.fits'
         HDUdata      = fits.open(fitsname)
         header       = HDUdata[0].header
@@ -1716,7 +1884,7 @@ class TTS_Model(object):
         return
     
     @keyErrHandle
-    def calc_total(self, phot=1, wall=1, disk=1, dust=0, verbose=1, dust_high=0, altinh=None, save=0):
+    def calc_total(self, phot=1, wall=1, disk=1, dust=0, verbose=1, dust_fill=3, altinh=None, save=0):
         """
         Calculates the total flux for our object (likely to be used for plotting and/or analysis). Once calculated, it
         will be added to the data attribute for this object. If already calculated, will overwrite.
@@ -1727,7 +1895,7 @@ class TTS_Model(object):
         disk: BOOLEAN -- if 1 (True), will add disk component to the combined model.
         dust: INTEGER -- Must correspond to an opt. thin dust model number linked to a fits file in datapath directory.
         verbose: BOOLEAN -- if 1 (True), will print messages of what it's doing.
-        dust_high: BOOLEAN -- if 1 (True), will look for a 4 digit valued dust file.
+        dust_fill: INTEGER -- if 4, will look for a 4 digit valued dust file (i.e., name_OTD_XXXX.fits).
         altinh: FLOAT/INT -- if not None, will multiply inner wall flux by that amount.
         save: BOOLEAN -- if 1 (True), will print out the components to a .dat file.
         
@@ -1744,12 +1912,12 @@ class TTS_Model(object):
             componentNumber += 1
         if phot:
             if verbose:
-                print('CALC_TOTAL: Adding photosphere component to the total flux.')
+                print 'CALC_TOTAL: Adding photosphere component to the total flux.'
             totFlux     = totFlux + self.data['phot']
             componentNumber += 1
         if wall:
             if verbose:
-                print('CALC_TOTAL: Adding inner wall component to the total flux.')
+                print 'CALC_TOTAL: Adding inner wall component to the total flux.'
             if altinh != None:
                 self.newIWall = self.data['iwall'] * altinh
                 totFlux       = totFlux + self.newIWall     # Note: if save=1, will save iwall w/ the original altinh.
@@ -1765,17 +1933,14 @@ class TTS_Model(object):
             componentNumber += 1
         if disk:
             if verbose:
-                print('CALC_TOTAL: Adding disk component to the total flux.')
+                print 'CALC_TOTAL: Adding disk component to the total flux.'
             totFlux     = totFlux + self.data['disk']
             componentNumber += 1
         if dust != 0:
-            try:
-                dustNum = numCheck(dust, high=dust_high)
-            except:
-                raise ValueError('CALC_TOTAL: Error! Dust input not a valid integer')
+            dustNum     = str(dust).zfill(dust_fill)
             dustHDU     = fits.open(self.dpath+self.name+'_OTD_'+dustNum+'.fits')
             if verbose:
-                print('CALC_TOTAL: Adding optically thin dust component to total flux.')
+                print 'CALC_TOTAL: Adding optically thin dust component to total flux.'
             if self.new:
                 self.data['dust']   = dustHDU[0].data[1,:]
             else:
@@ -1793,7 +1958,7 @@ class TTS_Model(object):
         
         # Add the total flux array to the data dictionary attribute:
         if verbose:
-            print('CALC_TOTAL: Total flux calculated. Adding to the data structure.')
+            print 'CALC_TOTAL: Total flux calculated. Adding to the data structure.'
         self.data['total'] = totFlux
         componentNumber += 1
         
@@ -1832,7 +1997,7 @@ class TTS_Model(object):
             
             # Trim the header and save:
             headerStr  = headerStr[0:-2]
-            filestring = '%s%s_%s.dat' % (self.dpath, self.name, numCheck(self.jobn, high=self.high))
+            filestring = '%s%s_%s.dat' % (self.dpath, self.name, str(self.jobn).zfill(self.fill))
             np.savetxt(filestring, outputTable, fmt='%.3e', delimiter=', ', header=headerStr, comments='#')
         
         return
@@ -1972,7 +2137,7 @@ class PTD_Model(TTS_Model):
     enstatit: Enstatite Fractional abundance.
     rin: The inner radius in AU.
     dpath: Path where the data files are located.
-    high: Whether or not the data was part of a 1000+ grid.
+    fill: How many numbers used in the model files (4 = name_XXXX.fits).
     data: The data for each component inside the model.
     extcorr: The self-extinction correction. If not carried out, saved as None.
     new: Whether or not the model was made with the newer version of collate.py.
@@ -1988,7 +2153,7 @@ class PTD_Model(TTS_Model):
                 the data attribute under the key 'total'. This also differs from TTS_Model.
     """
     
-    def dataInit(self, altname=None, jobw=None, highWall=0, wallpath = '', **searchKwargs):
+    def dataInit(self, altname=None, jobw=None, fillWall=3, **searchKwargs):
         """
         Initialize data attributes for this object using nested dictionaries:
         wl is the wavelength (corresponding to all three flux arrays). Phot is the stellar photosphere emission.
@@ -2001,7 +2166,7 @@ class PTD_Model(TTS_Model):
         INPUTS
         altname: An alternate name for the inner wall file if necessary.
         jobw: The job number of the wall. Can be a string of 'XXX' or 'XXXX' based on the filename, or just the integer.
-        highWall: BOOLEAN -- if 1, it means it's a 4 digit string rather than 3. Needed if you provide an int for jobw.
+        fillWall: How many numbers used in the model file for the inner wall (4 = name_XXXX.fits).
         **searchkwargs: Kwargs corresponding to parameters in the header that can be used to find the jobw value if 
                         you don't already know it. Otherwise, not necessary for the function call.
         """
@@ -2011,23 +2176,14 @@ class PTD_Model(TTS_Model):
         
         if jobw != None:
             # If jobw is an integer, make into a string:
-            if type(jobw) == int:
-                jobw = numCheck(jobw, high=highWall)
+            jobw          = str(jobw).zfill(fillWall)
             
             # The case in which you supplied the job number of the inner wall:
             if altname == None:
-                if wallpath == None:
-                    fitsname  = self.dpath + self.name + '_' + jobw + '.fits'
-                if wallpath != None:
-                    fitsname  = wallpath + self.name + '_' + jobw + '.fits'
-                    
+                fitsname  = self.dpath + self.name + '_' + jobw + '.fits'
                 HDUwall   = fits.open(fitsname)
             else:
-                if wallpath == None:
-                    fitsname  = self.dpath + altname + '_' + jobw + '.fits'
-                if wallpath != None:
-                    fitsname  = wallpath + altname + '_' + jobw + '.fits'
-                
+                fitsname  = self.dpath + altname + '_' + jobw + '.fits'
                 HDUwall   = fits.open(fitsname)
             
             # Make sure the inner wall job you supplied is, in fact, an inner wall.
@@ -2035,7 +2191,7 @@ class PTD_Model(TTS_Model):
                 raise IOError('DATAINIT: Job you supplied is not an inner wall or needs to be collated again!')
             
             # Now, load in the disk data:
-            stringNum     = numCheck(self.jobn, high=self.high)
+            stringNum     = str(self.jobn).zfill(self.fill)
             HDUdata       = fits.open(self.dpath + self.name + '_' + stringNum + '.fits')
             header        = HDUdata[0].header
             
@@ -2109,7 +2265,7 @@ class PTD_Model(TTS_Model):
                     raise IOError('DATAINIT: Job found is not an inner wall or needs to be collated again!')
             
                 # Now, load in the disk data:
-                stringNum    = numCheck(self.jobn, high=self.high)
+                stringNum    = str(self.jobn).zfill(self.fill)
                 HDUdata      = fits.open(self.dpath + self.name + '_' + stringNum + '.fits')
                 header       = HDUdata[0].header
             
@@ -2160,7 +2316,7 @@ class PTD_Model(TTS_Model):
         return
     
     @keyErrHandle
-    def calc_total(self, phot=1, wall=1, disk=1, owall=1, dust=0, verbose=1, dust_high=0, altInner=None, altOuter=None, save=0):
+    def calc_total(self, phot=1, wall=1, disk=1, owall=1, dust=0, verbose=1, dust_fill=3, altInner=None, altOuter=None, save=0):
         """
         Calculates the total flux for our object (likely to be used for plotting and/or analysis). Once calculated, it
         will be added to the data attribute for this object. If already calculated, will overwrite.
@@ -2172,7 +2328,7 @@ class PTD_Model(TTS_Model):
         owall: BOOLEAN -- if 1 (True), will add outer wall component to the combined model.
         dust: INTEGER -- Must correspond to an opt. thin dust model number linked to a fits file in datapath directory.
         verbose: BOOLEAN -- if 1 (True), will print messages of what it's doing.
-        dust_high: BOOLEAN -- if 1 (True), will look for a 4 digit valued dust file.
+        dust_fill: BOOLEAN -- How many numbers used in the model file for the optically thin dust (4 = name_OTD_XXXX.fits).
         altInner: FLOAT/INT -- if not None, will multiply inner wall flux by that amount.
         altOuter: FLOAT/INT -- if not None, will multiply outer wall flux by that amount.
         save: BOOLEAN -- if 1 (True), will print out the components to a .dat file.
@@ -2183,12 +2339,12 @@ class PTD_Model(TTS_Model):
         componentNumber = 1
         if phot:
             if verbose:
-                print('CALC_TOTAL: Adding photosphere component to the total flux.')
+                print 'CALC_TOTAL: Adding photosphere component to the total flux.'
             totFlux     = totFlux + self.data['phot']
             componentNumber += 1
         if wall:
             if verbose:
-                print('CALC_TOTAL: Adding inner wall component to the total flux.')
+                print 'CALC_TOTAL: Adding inner wall component to the total flux.'
             if altInner != None:
                 self.newIWall = self.data['iwall'] * altInner
                 totFlux       = totFlux + self.newIWall     # Note: if save=1, will save iwall w/ the original altinh.
@@ -2204,12 +2360,12 @@ class PTD_Model(TTS_Model):
             componentNumber += 1
         if disk:
             if verbose:
-                print('CALC_TOTAL: Adding disk component to the total flux.')
+                print 'CALC_TOTAL: Adding disk component to the total flux.'
             totFlux     = totFlux + self.data['disk']
             componentNumber += 1
         if owall:
             if verbose:
-                print('CALC_TOTAL: Adding outer wall component to the total flux.')
+                print 'CALC_TOTAL: Adding outer wall component to the total flux.'
             if altOuter != None:
                 self.newOWall = self.data['owall'] * altOuter
                 totFlux = totFlux + self.newOWall           # Note: if save=1, will save owall w/ the original altinh.
@@ -2224,13 +2380,10 @@ class PTD_Model(TTS_Model):
                     pass
             componentNumber += 1
         if dust != 0:
-            try:
-                dustNum = numCheck(dust, high=dust_high)
-            except:
-                raise ValueError('CALC_TOTAL: Error! Dust input not a valid integer')
+            dustNum     = str(dust).zfill(dust_fill)
             dustHDU     = fits.open(self.dpath+self.name+'_OTD_'+dustNum+'.fits')
             if verbose:
-                print('CALC_TOTAL: Adding optically thin dust component to total flux.')
+                print 'CALC_TOTAL: Adding optically thin dust component to total flux.'
             if self.new:
                 self.data['dust'] = dustHDU[0].data[1,:]
             else:    
@@ -2248,7 +2401,7 @@ class PTD_Model(TTS_Model):
         
         # Add the total flux array to the data dictionary attribute:
         if verbose:
-            print('CALC_TOTAL: Total flux calculated. Adding to the data structure.')
+            print 'CALC_TOTAL: Total flux calculated. Adding to the data structure.'
         self.data['total'] = totFlux
         componentNumber += 1
         
@@ -2288,7 +2441,7 @@ class PTD_Model(TTS_Model):
             
             # Trim the header and save:
             headerStr  = headerStr[0:-2]
-            filestring = '%s%s_%s.dat' % (self.dpath, self.name, numCheck(self.jobn, high=self.high))
+            filestring = '%s%s_%s.dat' % (self.dpath, self.name, str(self.jobn).zfill(self.fill))
             np.savetxt(filestring, outputTable, fmt='%.3e', delimiter=', ', header=headerStr, comments='#')
         
         return
@@ -2325,7 +2478,7 @@ class TTS_Obs(object):
         self.photometry = {}
         self.ulim       = []
         
-    def add_spectra(self, scope, wlarr, fluxarr, spec_err=None, nod_err=None):
+    def add_spectra(self, scope, wlarr, fluxarr, errors=None):
         """
         Adds an entry to the spectra attribute.
         
@@ -2338,37 +2491,29 @@ class TTS_Obs(object):
         
         # Check if the telescope data already exists in the data file:
         if scope in self.spectra.keys():
-            print('ADD_SPECTRA: Warning! This will overwrite current entry!')
+            print 'ADD_SPECTRA: Warning! This will overwrite current entry!'
             tries               = 1
             while tries <= 5:                                           # Give user 5 chances to choose if overwrite data or not
                 proceed         = raw_input('Proceed? (Y/N): ')         # Prompt and collect manual answer - requires Y,N,Yes,No (not case sensitive)
                 if proceed.upper() == 'Y' or proceed.upper() == 'YES':  # If Y or Yes, overwrite file, then break out of loop
-                    print('ADD_SPECTRA: Replacing entry.')
-                    if spec_err == None and nod_err == None:
+                    print 'ADD_SPECTRA: Replacing entry.'
+                    if errors == None:
                         self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr}
-                    elif spec_err != None and nod_err == None:
-                        self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'specErr': spec_err}
-                    elif spec_err == None and nod_err != None:
-                        self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'nodErr': nod_err}
-                    elif spec_err != None and nod_err != None:
-                        self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'specErr': spec_err, 'nodErr': nod_err}
+                    else:
+                        self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'err': errors}
                     break
                 elif proceed.upper() == 'N' or proceed.upper() == 'NO': # If N or No, do not overwrite data and return
-                    print('ADD_SPECTRA: Will not replace entry. Returning now.')
+                    print 'ADD_SPECTRA: Will not replace entry. Returning now.'
                     return
                 else:
                     tries       = tries + 1                             # If something else, lets you try again
             else:
                 raise IOError('You did not enter the correct Y/N response. Returning without replacing.')   # If you enter bad response too many times, raise error.
         else:
-            if spec_err == None and nod_err == None:
+            if errors == None:
                 self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr}
-            elif spec_err != None and nod_err == None:
-                self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'specErr': spec_err}
-            elif spec_err == None and nod_err != None:
-                self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'nodErr': nod_err}
-            elif spec_err != None and nod_err != None:
-                self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'specErr': spec_err, 'nodErr': nod_err}
+            else:
+                self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'err': errors}
         return
     
     def add_photometry(self, scope, wlarr, fluxarr, errors=None, ulim=0):
@@ -2385,12 +2530,12 @@ class TTS_Obs(object):
         
         # Check if the telescope data already exists in the data file:
         if scope in self.photometry.keys():
-            print('ADD_PHOTOMETRY: Warning! This will overwrite current entry!')
+            print 'ADD_PHOTOMETRY: Warning! This will overwrite current entry!'
             tries                   = 1
             while tries <= 5:                                               # Give user 5 chances to choose if overwrite data or not
                 proceed             = raw_input('Proceed? (Y/N): ')         # Prompt and collect manual answer - requires Y,N,Yes,No (not case sensitive)
                 if proceed.upper() == 'Y' or proceed.upper() == 'YES':      # If Y or Yes, overwrite file, then break out of loop
-                    print('ADD_PHOTOMETRY: Replacing entry.')
+                    print 'ADD_PHOTOMETRY: Replacing entry.'
                     if errors == None:
                         self.photometry[scope]  = {'wl': wlarr, 'lFl': fluxarr}
                     else:
@@ -2399,7 +2544,7 @@ class TTS_Obs(object):
                         self.ulim.append(scope)                             # If upper limit, append metadata to ulim attribute list.
                     break
                 elif proceed.upper() == 'N' or proceed.upper() == 'NO':     # If N or No, do not overwrite data and return
-                    print('ADD_PHOTOMETRY: Will not replace entry. Returning now.')
+                    print 'ADD_PHOTOMETRY: Will not replace entry. Returning now.'
                     return
                 else:
                     tries           = tries + 1                             # If something else, lets you try again
@@ -2414,7 +2559,7 @@ class TTS_Obs(object):
                 self.ulim.append(scope)                                     # If upper limit, append metadata to ulim attribute list.
         return
     
-    def SPPickle(self, picklepath, clob = False):
+    def SPPickle(self, picklepath):
         """
         Saves the object as a pickle. Damn it Jim, I'm a doctor not a pickle farmer!
         
@@ -2423,8 +2568,6 @@ class TTS_Obs(object):
         
         INPUTS
         picklepath: The path where you will save the pickle. I recommend datapath for simplicity.
-        clob: boolean, if set to True, will clobber the old pickle
-        
         
         OUTPUT:
         A pickle file of the name [self.name]_obs.pkl in the directory provided in picklepath.
@@ -2435,10 +2578,10 @@ class TTS_Obs(object):
         outname         = self.name + '_obs.pkl'
         count           = 1
         while 1:
-            if outname in pathlist and clob == False:
+            if outname in pathlist:
                 if count == 1:
-                    print('SPPICKLE: Pickle already exists in directory. For safety, will change name.')
-                countstr= numCheck(count)
+                    print 'SPPICKLE: Pickle already exists in directory. For safety, will change name.'
+                countstr= str(count)
                 count   = count + 1
                 outname = self.name + '_obs_' + countstr + '.pkl'
             else:
@@ -2457,7 +2600,7 @@ class Red_Obs(TTS_Obs):
     
     """
     
-    def dered(self, Av, Av_unc, law, picklepath, flux=1, lpath=edgepath, err_prop=1, UV = 0, clob = False):
+    def dered(self, Av, Av_unc, law, picklepath, flux=1, lpath=edgepath, err_prop=1):
         """
         Deredden the spectra/photometry present in the object, and then convert to TTS_Obs structure.
         This function is adapted from the IDL procedure 'dered_calc.pro' (written by Melissa McClure).
@@ -2474,11 +2617,7 @@ class Red_Obs(TTS_Obs):
         lpath: Where the 'ext_laws.pkl' file is located. I suggest hard coding it as 'edgepath'.
         err_prop: BOOLEAN -- if True (1), will propagate the uncertainty of your photometry with the
                   uncertainty in your Av. Otherwise, it will not.
-        UV: Uses dereddening law from Whittet et al. 2004 based on the extinction towards HD 29647 
-            for wavelengths between 0.125-9.33 microns.
-            NOTE: This is ONLY useful for stars extincted by diffuse media, with RV = 3.1 (MATHIS LAW)
-            
-            
+        
         OUTPUT
         There will be a pickle file called '[self.name]_obs.pkl' in the path provided in picklepath. If
         there is already an obs pickle file there, it will add an integer to the name to differentiate
@@ -2487,7 +2626,7 @@ class Red_Obs(TTS_Obs):
         
         # Read in the dereddening laws pickle. The default is whereever you keep EDGE.py, but you can move it.
         extPickle = open(lpath + 'ext_laws.pkl', 'rb')
-        extLaws   = cPickle.load(extPickle, encoding = 'latin1')
+        extLaws   = cPickle.load(extPickle)
         extPickle.close()
         
         # Figure out which law we will be using based on the user input and Av:
@@ -2552,144 +2691,25 @@ class Red_Obs(TTS_Obs):
         # Loop over the provided spectra (and possible errors), and compute the dereddened fluxes
         # and uncertainties where available. The possible uncertainties calculations are both the
         # SSC/SMART's "spectral uncertainty" and the "nod-differenced uncertainty".
-
         for specKey in self.spectra.keys():
             extInterpolated = np.interp(self.spectra[specKey]['wl'], wave_law, ext_law) # Interpolated ext.
-            
-            #If the UV flag is on, replace the extinction law between 0.125 - .33 microns with a different law
-            if UV == True:
-                
-                #Ensure that you are using the Rv = 3.1 Mathis law
-                if law != 'mathis90_rv3.1' and law != 'mkm09_rv3':
-                    raise ValueError('UV dereddening mode for use only with the low extinction laws (mathis90_rv3.1 and mkm09_rv3)')
-                
-                #Covert wavelength to 1/microns
-                x = self.spectra[specKey]['wl'] ** (-1)
-                
-                #Define the valid range (3-8 (micron)^-1)
-                UVrange = np.where((x > 3) & (x < 8))
-                
-                # If the range does contain some points in the right wavelength range, calculate the new extinction law there
-                if len(UVrange[0]) != 0:
-                
-                    #Because this function only works for diffuse regions, forced to use an Rv of 3.1 (common interstellar value)
-                    Rv = 3.1
-                    
-                    # Define the extinction parameters (HD 29647, Table 1, Whittet et al. 2004)
-                    # Functional form of the extinction from Fitzpatrick + Massa (1988, 1990)
-                    c1 = 0.005
-                    c2 = 0.813
-                    c3 = 3.841
-                    c4 = 0.717
-                    x0 = 4.650
-                    gamma = 1.578
-                    
-                    #Calculate the extinction at each wavelength in terms of Alambda/Av
-                    #Uses parametrization set up by Fitzpatrick + Massa (1988, 1990)
-                    
-                    #Drude function at x0 with width gamma
-                    D = (x**2) / ((x**2 - x0**2)**2 + gamma**2*x**2) 
-                    #Polynomial representing far UV rise
-                    F = 0.5392*(x-5.9)**2 + 0.0564*(x-5.9)**3
-                    F[np.where(x<5.9)] = 0
-                    
-                    #Calculate A_UV and truncate outside the valid range (3-8 (micron)^-1)
-                    ext_UV_all = 1 + (c1 + c2*x + c3*D + c4*F)/Rv
-                    
-                    ext_UV = ext_UV_all[UVrange[0]]
-                    
-                    #Convert from Alam/Av to Alam/Aj to be consitant with extInterpolated
-                    ext_UV_j = ext_UV * AvoAj
-                    
-                    #Replace the old values of extinction with the new ones
-                    extInterpolated[UVrange[0]] = ext_UV_j
-                    
-                else:
-                    pass
-            
-            
             A_lambda        = extInterpolated * (A_object / AvoAj)
             spec_flux       = np.float64(self.spectra[specKey]['lFl']*10.0**(0.4*A_lambda))
-            
-            
-            
-            if 'specErr' in self.spectra[specKey].keys():
-                spec_unc    = np.float64(spec_flux*np.sqrt(((self.spectra[specKey]['specErr']/self.spectra[specKey]['lFl'])\
+
+            if 'err' in self.spectra[specKey].keys():
+                spec_unc    = np.float64(spec_flux*np.sqrt(((self.spectra[specKey]['err']/self.spectra[specKey]['lFl'])\
                                          **2.) + (((0.4*math.log(10)*extInterpolated*Av_unc)/(AvoAj))**2.)) )
             else:
                 spec_unc    = None
-            if 'nodErr' in self.spectra[specKey].keys():
-                pn_vals     = self.spectra[specKey]['nodErr']/abs(self.spectra[specKey]['nodErr'])
-                spec_nod    = np.float64(pn_vals*spec_flux*np.sqrt(((self.spectra[specKey]['nodErr'] \
-                                         / self.spectra[specKey]['lFl'])**2.) + \
-                                         (((0.4*math.log(10)*extInterpolated*Av_unc)/(AvoAj))**2.)) )
-            else:
-                spec_nod    = None
             # Correct units to flux:
-            #spec_flux       = spec_flux * self.spectra[specKey]['wl']# * 1e-4
-            #if spec_unc != None:
-            #    spec_unc    = spec_unc  * self.spectra[specKey]['wl']# * 1e-4
-            #if spec_nod != None:
-            #    spec_nod    = spec_nod  * self.spectra[specKey]['wl']# * 1e-4
-            
-            deredObs.add_spectra(specKey, self.spectra[specKey]['wl'], spec_flux, spec_err=spec_unc, nod_err=spec_nod)
+            spec_flux       = spec_flux * self.spectra[specKey]['wl'] * 1e-4
+            if spec_unc != None:
+                spec_unc    = spec_unc  * self.spectra[specKey]['wl'] * 1e-4
+            deredObs.add_spectra(specKey, self.spectra[specKey]['wl'], spec_flux, errors=spec_unc)
         
         # Spectra are done, onwards to photometry:
         for photKey in self.photometry.keys():
             extInterpolated = np.interp(self.photometry[photKey]['wl'], wave_law, ext_law)
-            
-            #If the UV flag is on, replace the extinction law between 0.125 - .33 microns with a different law
-            if UV == True:
-                
-                #Ensure that you are using the Rv = 3.1 Mathis law
-                if law != 'mathis90_rv3.1' and law != 'mkm09_rv3':
-                    raise ValueError('UV dereddening mode for use only with the low extinction laws (mathis90_rv3.1 and mkm09_rv3)')
-                
-                #Covert wavelength to 1/microns
-                x = self.photometry[photKey]['wl'] ** (-1)
-                
-                #Define the valid range (3-8 (micron)^-1)
-                UVrange = np.where((x > 3) & (x < 8))
-                
-                # If the range does contain some points in the right wavelength range, calculate the new extinction law there
-                if len(UVrange[0]) != 0:
-                
-                    #Because this function only works for diffuse regions, forced to use an Rv of 3.1 (common interstellar value)
-                    Rv = 3.1
-                    
-                    # Define the extinction parameters (HD 29647, Table 1, Whittet et al. 2004)
-                    # Functional form of the extinction from Fitzpatrick + Massa (1988, 1990)
-                    c1 = 0.005
-                    c2 = 0.813
-                    c3 = 3.841
-                    c4 = 0.717
-                    x0 = 4.650
-                    gamma = 1.578
-                    
-                    #Calculate the extinction at each wavelength in terms of Alambda/Av
-                    #Uses parametrization set up by Fitzpatrick + Massa (1988, 1990)
-                    
-                    #Drude function at x0 with width gamma
-                    D = (x**2) / ((x**2 - x0**2)**2 + gamma**2*x**2) 
-                    #Polynomial representing far UV rise
-                    F = 0.5392*(x-5.9)**2 + 0.0564*(x-5.9)**3
-                    F[np.where(x<5.9)] = 0
-                    
-                    #Calculate A_UV and truncate outside the valid range (3-8 (micron)^-1)
-                    ext_UV_all = 1 + (c1 + c2*x + c3*D + c4*F)/Rv
-                    
-                    ext_UV = ext_UV_all[UVrange[0]]
-                    
-                    #Convert from Alam/Av to Alam/Aj to be consitant with extInterpolated
-                    ext_UV_j = ext_UV * AvoAj
-                    
-                    #Replace the old values of extinction with the new ones
-                    extInterpolated[UVrange[0]] = ext_UV_j
-                    
-                    
-                else:
-                    pass
-            
             A_lambda        = extInterpolated * (A_object / AvoAj)
             if flux:
                 photcorr    = self.photometry[photKey]['lFl'] / (self.photometry[photKey]['wl']*1e-4)
@@ -2719,22 +2739,18 @@ class Red_Obs(TTS_Obs):
             except TypeError:
                 pass
             deredObs.add_photometry(photKey, self.photometry[photKey]['wl'], phot_dered, errors=phot_err, ulim=ulimVal)
-            
-
-            
+                
         # Now that the new TTS_Obs object has been created and filled in, we must save it:
-        deredObs.SPPickle(picklepath=picklepath, clob = clob)
+        deredObs.SPPickle(picklepath=picklepath)
         
         return
     
-    def SPPickle(self, picklepath, clob = False):
+    def SPPickle(self, picklepath):
         """
         The new version of SPPickle, different so you can differentiate between red and dered pickles.
         
         INPUT
         picklepath: The path where the new pickle file will be located.
-        clob: boolean, if set to True, will clobber the old pickle
-        
         
         OUTPUT
         A new pickle file in picklepath, of the name [self.name]_red.pkl
@@ -2745,10 +2761,10 @@ class Red_Obs(TTS_Obs):
         outname         = self.name + '_red.pkl'
         count           = 1
         while 1:
-            if outname in pathlist and clob == False:
+            if outname in pathlist:
                 if count == 1:
-                    print('SPPICKLE: Pickle already exists in directory. For safety, will change name.')
-                countstr= numCheck(count)
+                    print 'SPPICKLE: Pickle already exists in directory. For safety, will change name.'
+                countstr= str(count)
                 count   = count + 1
                 outname = self.name + '_red_' + countstr + '.pkl'
             else:

@@ -5,7 +5,7 @@ from glob import glob
 import pdb
 import os
 
-def collate(path, jobnum, name, destination, optthin=0, clob=0, high=0, noextinct = 0, noangle = 0, nowall = 0, nophot = 0, noscatt = 1):
+def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinct = 0, noangle = 0, nowall = 0, nophot = 0, noscatt = 1):
     """
      collate.py                                                                          
                                                                                            
@@ -37,7 +37,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, high=0, noextinc
             clob: Set this value to 1 (or True) to overwrite a currently existing
                   fits file from a previous run.
             
-            high: Set this value to 1 (or True) if your job number is 4 digits long.
+            fill: Set this value to the number of digits in your job file (default is 3).
 
             nowall: Set this value to 1 (or True) if you do NOT want to include a wall file
             
@@ -99,6 +99,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, high=0, noextinc
 
                                                                                             
      MODIFICATION HISTORY
+     Dan Feldman, 19 Oct 2016, Removed numCheck for the zfill fix. Changed high input to fill.
      Connor Robinson, 12, Nov, 2015, Added parsing for MDOTSTAR in edge
      Connor Robinson, 6 Aug 2015, Added error handling, the FAILED key in the header, and the failCheck and head functions 
      Connor Robinson, 30 July 2015, Added scattered light + ability to turn off components of the model
@@ -116,7 +117,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, high=0, noextinc
     
     # Convert jobnum into a string:
     if type(jobnum) == int:
-        jobnum = numCheck(jobnum, high=high)
+        jobnum = str(jobnum).zfill(fill)
         
     # If working with optically thin models
     if optthin:
@@ -533,27 +534,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, high=0, noextinc
     
     return
 
-def numCheck(num, high=0):
-    """
-    Takes a number between 0 and 9999 and converts it into a 3 or 4 digit string. E.g., 2 --> '002', 12 --> '012'
-    
-    INPUT
-    num: A number between 0 and 9999. If this is a float, it will still work, but it will chop off the decimal.
-    high: BOOLEAN -- if True (1), output is forced to be a 4 digit string regardless of the number.
-        
-    OUTPUT
-    numstr: A string of 3 or 4 digits, where leading zeroes fill in any spaces.
-    
-    """
-    if num > 9999 or num < 0:
-        raise ValueError('Number too small/large for string handling!')
-    if num > 999 or high == 1: 
-        numstr          = '%04d' % num
-    else:
-        numstr          = '%03d' % num
-    return numstr
-
-def failCheck(name, path = '', jobnum = 'all', high = 0, optthin = 0):
+def failCheck(name, path = '', jobnum = 'all', fill = 3, optthin = 0):
     """
     Opens up each header, checks if 'FAILED' tag = 1 and records the job number in a list if it is
 
@@ -570,7 +551,7 @@ def failCheck(name, path = '', jobnum = 'all', high = 0, optthin = 0):
 
            optthin: Set this to 1 if the collated file is an optically thin dust file
 
-           high: Set this to 1 if the jobnum has 4 digits.
+           fill: Set this value to the number of digits in your job file (default is 3).
 
     OUTPUT
            Returns a list of failed jobs. If none are found, array will be empty.
@@ -581,10 +562,7 @@ def failCheck(name, path = '', jobnum = 'all', high = 0, optthin = 0):
         opt = 'OTD_' 
 
     #Set up wildcards depending on number formating
-    if high == 0:
-        wildhigh = '???'
-    if high == 1:
-        wildhigh = '????'
+    wildhigh = '?'*fill
 
     if jobnum == 'all':
         if optthin == 1:
@@ -607,7 +585,7 @@ def failCheck(name, path = '', jobnum = 'all', high = 0, optthin = 0):
     if jobnum != 'all':   
 
         if type(jobnum) == int:
-            jobnum = numCheck(jobnum, high = high)
+            jobnum = str(jobnum).zfill(fill)
         
         failed = []
         nofail = 0
@@ -629,7 +607,7 @@ def failCheck(name, path = '', jobnum = 'all', high = 0, optthin = 0):
     return failed
 
 
-def head(name, jobnum, path='', optthin = 0, high = 0):
+def head(name, jobnum, path='', optthin = 0, fill = 3):
     """
     
     prints out the contents of the header of a collated file
@@ -645,14 +623,14 @@ def head(name, jobnum, path='', optthin = 0, high = 0):
     KEYWORDS:
            optthin: Set this to 1 If the collated file is an optically thin dust file
 
-           high: Set this to 1 if the jobnum has 4 digits.
+           fill: Set this value to the number of digits in your job file (default is 3).
 
     OUTPUTS:
            Prints the contents of the header to the terminal. Returns nothing else.
 
     """
     if type(jobnum) == int:
-        jobnum = numCheck(jobnum, high = high)
+        jobnum = str(jobnum).zfill(fill)
 
     if optthin == 1:
         otd = 'OTD_'
