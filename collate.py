@@ -4,6 +4,7 @@ from astropy.io import ascii
 from glob import glob
 import pdb
 import os
+from glob import glob
 
 def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinct = 0, noangle = 0, nowall = 0, nophot = 0, noscatt = 1):
     """
@@ -116,15 +117,16 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
     """
     
     # Convert jobnum into a string:
-    if type(jobnum) == int:
-        jobnum = str(jobnum).zfill(fill)
-        
+    jobnum = str(jobnum).zfill(fill)
+    
     # If working with optically thin models
     if optthin:
         
         #Read in file
         job = 'job_optthin'+jobnum
-
+        
+        
+        
         try:
             f = open(path+job, 'r')
         except IOError:
@@ -536,25 +538,25 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
 
 def failCheck(name, path = '', jobnum = 'all', fill = 3, optthin = 0):
     """
-    Opens up each header, checks if 'FAILED' tag = 1 and records the job number in a list if it is
-
+    
+    PURPOSE:
+        Opens up each header, checks if 'FAILED' tag = 1 and records the job number in a list if it is
+    
     INPUTS:
-           name: String of the name of object
-
+        name: String of the name of object
+    
     OPTIONAL INPUTS:
-           path: Path to the collated file. Default is the current directory
-
-           jobnum: Job number of object. Can be either a string or an int. If it's not set, failCheck
-                   will return ALL collated jobs that failed in the path directory
-
+        path: Path to the collated file. Default is the current directory
+    
+        jobnum: Job number of object. Can be either a string or an int. If it's not set, failCheck
+                will return ALL collated jobs that failed in the path directory
+    
     KEYWORDS:
-
-           optthin: Set this to 1 if the collated file is an optically thin dust file
-
-           fill: Set this value to the number of digits in your job file (default is 3).
-
+        optthin: Set this to 1 if the collated file is an optically thin dust file
+        fill: Set this value to the number of digits in your job file (default is 3).
+    
     OUTPUT
-           Returns a list of failed jobs. If none are found, array will be empty.
+        Returns a list of failed jobs. If none are found, array will be empty.
     """
 
     opt = ''
@@ -610,23 +612,23 @@ def failCheck(name, path = '', jobnum = 'all', fill = 3, optthin = 0):
 def head(name, jobnum, path='', optthin = 0, fill = 3):
     """
     
+    collate.head
+    
     prints out the contents of the header of a collated file
-
+    
     INPUTS:
-           name: String of the name of object
-
-           jobnum: Job number of object. Can be either a string or an int
-
+        name: String of the name of object
+        jobnum: Job number of object. Can be either a string or an int
+    
     OPTIONAL INPUTS:
-           path: Path to the collated file. Default is the current directory
-
+        path: Path to the collated file. Default is the current directory
+    
     KEYWORDS:
-           optthin: Set this to 1 If the collated file is an optically thin dust file
-
-           fill: Set this value to the number of digits in your job file (default is 3).
-
+        optthin: Set this to 1 If the collated file is an optically thin dust file
+        fill: Set this value to the number of digits in your job file (default is 3).
+    
     OUTPUTS:
-           Prints the contents of the header to the terminal. Returns nothing else.
+        Prints the contents of the header to the terminal. Returns nothing else.
 
     """
     if type(jobnum) == int:
@@ -643,6 +645,60 @@ def head(name, jobnum, path='', optthin = 0, fill = 3):
 
     print(repr(HDU[0].header))
 
-
+def masscollate(name, destination = '',path = '', jobnum = '', all = True, optthin=0, clob=0, fill=3, noextinct = 0, noangle = 0, nowall = 0, nophot = 0, noscatt = 1):
+    '''
+    collate.masscollate
+    
+    PURPOSE:
+        Collates lots of files in a given directory
+    
+    INPUTS:
+        name: Name of the object
+    
+    OPTIONAL INPUTS:
+        jobnum: If you are providing a list/numpy array of the job numbers that you want to collate, set jobnum equal to that list/array
+        path: Path to the all of the output from diad. Default is the current directory.
+        destination: Path to where you want the collated files to go. Default is the current directory.
+        
+    KEYWORDS:
+        all: Will collate all of the files at a given location with the indicated keywords, no need to supply list to jobnum if this is used. Default is true.
+        Rest of the optional keywords are the same as collate
+    
+    '''
+    
+    #Check to see if neither jobnum or all is used
+    if jobnum == None and all == False:
+        print("ERROR: NO JOBS COLLATED. PROVIDE VALUES FOR 'jobnum' OR USE THE 'all = True' KEYWORD")
+        return
+    
+    #Get the list of job numbers if using the all keyword
+    if all == True:
+        if optthin == 1:
+            files = glob(path+'job_optthin'+'?'*fill)
+        else:
+            files = glob(path+'job'+'?'*fill)
+        
+        
+        #If there are no files found, report it and return
+        if len(files) == 0:
+            if path == '':
+                print('NO JOB FILES FOUND IN THE CURRENT WORKING DIRECTORY. RETURNING...')
+                return
+            else:
+                print('NO JOB FILES FOUND IN '+path+' RETURNING...')
+                
+        jobnum = [x[-fill:] for x in files]
+        
+        
+        #Collate the files 
+        for job in jobnum:
+            collate(path, job, name, destination, optthin=optthin, clob=clob, fill=fill, noextinct = noextinct, noangle = noangle, nowall = nowall, nophot = nophot, noscatt = noscatt)
+            
+        
+    
+    
+    
+    
+    
     
     
