@@ -69,7 +69,7 @@ labelend = 'MPMus'
 #Open up a file and print the parameter names
 f = open(gridpath+paramfiletag+'optthin_job_params.txt', 'w') 
 f.writelines('Job Number, amax, tstar, rstar, dist, mui, rout, rin, tau, power, fudgeorg, fudgetroi, fracsil, fracent, fracforst, fracamc \n')
-
+T
 #Write each iteration as a row in the table
 for ind, values in enumerate(itertools.product(amax, tstar, rstar, dist, mui, rout, rin, tau, power, fudgeorg, fudgetroi, fracsil, fracent, fracforst, fracamc)):
     f.writelines(str(ind+jobnumstart)+', '+ str(values)[1:-1]+ '\n')
@@ -80,7 +80,7 @@ table = ascii.read(gridpath+paramfiletag+'optthin_job_params.txt')
 
 #Create the jobfiles using edge.job_file_create
 for i in range(len(table)):
-    label = labelend+'_'+edge.numCheck(i+jobnumstart)
+    label = labelend+'_'+str(i+jobnumstart).zfill(3)
     
     edge.job_optthin_create(i+jobnumstart, gridpath, \
     amax      = table['amax'][i], \
