@@ -7,7 +7,7 @@ import os
 from glob import glob
 from scipy import interpolate
 
-def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinct = 0, noangle = 0, nowall = 0, nophot = 0, noscatt = 1, notemp = 0):
+def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinct = 0, noangle = 0, nowall = 0, nophot = 0, noscatt = 1, notemp = 0, shock = 0):
     """
      collate.py                                                                          
                                                                                            
@@ -35,27 +35,21 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
             optthin: Set this value to 1 (or True) to run the optically thin dust
                      version of collate instead of the normal disk code. This will
                      also place a tag in the header.
-             
+            shock: Set this to 1 if the model that is being collated is a Calvet 1998 shock model.
             clob: Set this value to 1 (or True) to overwrite a currently existing
                   fits file from a previous run.
-            
             fill: Set this value to the number of digits in your job file (default is 3).
-
             nowall: Set this value to 1 (or True) if you do NOT want to include a wall file
-            
             noangle: Set this value to 1 (or True) if you do NOT want to to include a disk file
                      NOTE: You cannot perform the self extinction correction without the angle file. If this is set to 1, then
                      the noextin keyword will also be set to 1 automatically. 
-
             nophot: Set this value to 1 (or True) if you do NOT want to include a photosphere file
-
             noextin: Set this value to 1 (or True) if you do NOT want to apply extinction 
                      to the inner wall and photosphere.
-
             noscatt: !!!!! NOTE: THIS IS SET TO 1 BY DEFAULT !!!!!
                      Set this value to 1 (or True) if you do NOT want to include the scattered light file.
                      Set this value to 0 (or False) if you DO want to include the scattered light file
-
+            
      EXAMPLES:                                                                                
             To collate a single model run for the object 'myobject' under the
             job number '001', use the following commands:
@@ -121,12 +115,10 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
     jobnum = str(jobnum).zfill(fill)
     
     # If working with optically thin models
-    if optthin:
+    if optthin == True & shock == False:
         
         #Read in file
         job = 'job_optthin'+jobnum
-        
-        
         
         try:
             f = open(path+job, 'r')
@@ -231,7 +223,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
             print("WARNING IN JOB "+jobnum+": KEYWORDS THAT HAVE NO AFFECT ON OPTICALLY THIN DUST HAVE BEEN USED (NOPHOT, NOWALL, NOANGLE)")
         
     # If working with job models start here
-    elif optthin == 0 or optthin == 'False':
+    elif optthin == False and shock == False:
         
         #read in file
         job = 'job'+jobnum
@@ -576,8 +568,93 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
         elif notemp == 1:
             hdu.header.set('NOTEMP', 1)
         
-        
         #Write header to fits file
+        hdu.writeto(destination+name+'_'+jobnum+'.fits', clobber = clob)
+        
+    #Now handle the shock file case
+    elif shock == True and optthin == False:
+        #Read in file
+        job = 'job'+jobnum
+        try:
+            f = open(path+job, 'r')
+        except IOError:
+            print('MISSING JOB NUMBER '+jobnum+', RETURNING...')
+            return
+        
+        jobf = f.read()
+        f.close()
+        
+        #Choose the variables you want to extract
+        sparam = np.array(['DISTANCE', 'MASS', 'RADIO', 'TSTAR', 'BIGF', 'FILLING', 'WTTS','VEILING'])
+        dparam = []
+        
+        #Begin extracting parameters
+        for i, param in enumerate(sparam):
+            #Handle the special cases of WTTS
+            if param == 'WTTS':
+                wtts = jobf.split("filewtts="+name+'_')[1].split("veil")[0]
+                dparam.append(wtts)
+            
+            #Handle the special cases of VEILING
+            elif param == 'VEILING':
+                dparam.append(float(jobf.split("filewtts="+name+"_"+wtts+'veil')[1].split(".dat")[0]))
+            
+            #Handle the special cases of BIGF
+            elif param == 'BIGF':
+                dparam.append(jobf.split(param+"='")[1].split("'")[0])
+                
+            #Handle everything else
+            else:
+                dparam.append(float(jobf.split(param+"='")[1].split("'")[0]))
+                
+        dparam = np.array(dparam)
+        
+        #Add in the data for each column
+        #set up empty array to accept data, column names and axis number
+        dataarr = np.array([])
+        axis = {'WLAXIS':0}
+        axis_count = 1 #Starts at 1, axis 0 reserved for wavelength information
+        
+        #Load in the model
+        datastart = 119
+        footer = 8
+        
+        #Load in the data
+        try:
+            data = np.genfromtxt(path+'fort30.'+name+jobnum, skip_header = datastart, usecols = [1,2,3,4], skip_footer = footer)
+        except StopIteration:
+            print('MODEL '+jobnum+' FAILED, RETURNING...')
+            return
+        
+        wl = data[:,0]
+        Fhp = data[:,1]*data[:,0]
+        Fpre = data[:,2]*data[:,0]
+        Fphot = data[:,3]*data[:,0]
+        
+        #Add in axis labels
+        axis['HEATAXIS'] = 1
+        axis['PREAXIS'] = 2
+        axis['PHOTAXIS'] = 3
+        
+        #Get the data in the right shape
+        dataarr = np.vstack([wl, Fhp, Fpre, Fphot])
+        
+        #Create the header and add parameters
+        hdu = fits.PrimaryHDU(dataarr)
+        
+        #Add a few misc tags to the header
+        hdu.header.set('OBJNAME', name)
+        hdu.header.set('JOBNUM', jobnum)
+        
+        #Add the rest of the parameters to the header
+        for i, param in enumerate(sparam):
+            hdu.header.set(param, dparam[i])
+            
+        #Create tags in the header that match up each column to the data enclosed]
+        for naxis in axis:
+            hdu.header.set(naxis, axis[naxis])
+        
+        #Write out the file
         hdu.writeto(destination+name+'_'+jobnum+'.fits', clobber = clob)
         
     # If you don't give a valid input for the optthin keyword, raise an error
@@ -695,7 +772,7 @@ def head(name, jobnum, path='', optthin = 0, fill = 3):
 
     print(repr(HDU[0].header))
 
-def masscollate(name, destination = '',path = '', jobnum = '', all = True, optthin=0, clob=0, fill=3, noextinct = 0, noangle = 0, nowall = 0, nophot = 0, noscatt = 1):
+def masscollate(name, destination = '',path = '', jobnum = '', all = True, optthin=0, clob=0, fill=3, noextinct = 0, noangle = 0, nowall = 0, nophot = 0, noscatt = 1, shock= 0):
     '''
     collate.masscollate
     
@@ -742,7 +819,7 @@ def masscollate(name, destination = '',path = '', jobnum = '', all = True, optth
         
         #Collate the files 
         for job in jobnum:
-            collate(path, job, name, destination, optthin=optthin, clob=clob, fill=fill, noextinct = noextinct, noangle = noangle, nowall = nowall, nophot = nophot, noscatt = noscatt)
+            collate(path, job, name, destination, optthin=optthin, clob=clob, fill=fill, noextinct = noextinct, noangle = noangle, nowall = nowall, nophot = nophot, noscatt = noscatt, shock = shock)
             
         
     
