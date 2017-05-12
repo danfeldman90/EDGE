@@ -590,14 +590,11 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
         
         #Begin extracting parameters
         for i, param in enumerate(sparam):
+            
             #Handle the special cases of WTTS
             if param == 'WTTS':
-                wtts = jobf.split("filewtts="+name+'_')[1].split("veil")[0]
+                wtts = jobf.split("filewtts="+name+'_')[1].split("_")[0]
                 dparam.append(wtts)
-            
-            #Handle the special cases of VEILING
-            elif param == 'VEILING':
-                dparam.append(float(jobf.split("filewtts="+name+"_"+wtts+'veil')[1].split(".dat")[0]))
             
             #Handle the special cases of BIGF
             elif param == 'BIGF':
@@ -607,7 +604,6 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
             else:
                 dparam.append(float(jobf.split(param+"='")[1].split("'")[0]))
                 
-        dparam = np.array(dparam)
         
         #Add in the data for each column
         #set up empty array to accept data, column names and axis number
@@ -626,6 +622,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
             print('MODEL '+jobnum+' FAILED, RETURNING...')
             return
         
+        #Convert data into erg cm^-1 s^-1
         wl = data[:,0]
         Fhp = data[:,1]*data[:,0]
         Fpre = data[:,2]*data[:,0]
