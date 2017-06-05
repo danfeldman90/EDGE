@@ -1,13 +1,13 @@
 #!/bin/csh
 
-# Nov15 Kike: Two different mass accretion rates are used:
+# Nov15 EM: Two different mass accretion rates are used:
 # MDOT: Mass accretion rate in the disk, as usual. Used to calculate the surface 
 # density of the disk. It goes into viscoso as an input and is read from fort14.vis
 # in irr_dosamax.
 # MDOTSTAR: Mass accretion rate onto the star. Note that
 # it could be different to MDOT in the disk (e.g. if a planet is creating a 
 # cavity in the disk). This mass accretion rate is used to calculate the 
-# accretion luimnosity in opamean, irr_dosamax and the wall.
+# accretion luminosity in opamean, irr_dosamax and the wall.
 
 #6aug15 CE cleaned up to work with EDGE
 #8mar12  LA
@@ -42,7 +42,7 @@ set MUI='0.5'  #cosine of inclination angle
 #wall parameters ------------------------------------
 set TEMP=1400. #temperature at inner edge (i.e., wall) of disk
 set ALTINH=3   #scale height of all
-set RDISK='30'  #outer radius of disk in AU
+set RDISK='300'  #outer radius of disk in AU
 
 #dust grain sizes & settling in upper disk layer----------------
 #note: uncomment AMAXS and corresponding lamaxs
@@ -81,14 +81,14 @@ set lamaxs='amax0p25'
 
 #note: uncomment EPS and corresponding epsilonbig
 #------------------------
-set EPS='.0001'
-set epsilonbig='12.5'
+#set EPS='.0001'
+#set epsilonbig='12.5'
 #-----------------------
 #set EPS='.001'
 #set epsilonbig='12.5'
 #------------------------
-#set EPS='.01'
-#set epsilonbig='12.4'
+set EPS='.01'
+set epsilonbig='12.4'
 #------------------------
 #set EPS='.1'
 #set epsilonbig='11.4'
@@ -247,7 +247,7 @@ set labeps=e$EPS
 set labepb=e$epsilonbig
 
 #programs ----------------------------------------------------------------
-set PHOTOS=$DIRPRO/photosphere
+set PHOTOS=$DIRPRO/photosphere_v3
 set COMBINA=$DIRPRO/combina
 set OPA_PROG=$DIROPA/opa_sgi_tsub1400_nogas_ssh_v2
 set VIS_PROG=$DIRPRO/viscoso
@@ -290,14 +290,18 @@ echo $FILEENSTATITE FA $ENSTATITE_FRAC  >> $LOGFILE
 
 #begin PHOT calculation -----------------------
 set TABLEKH=$DIRPRO/tabla_a5_kh95
+set TABLEPM=$DIRPRO/tabla_no5_pm13
 set FILEPHOT=Phot$TSTAR.$labcom
+set TABLE='pm13'  #can be 'kh95' or 'pm13'
 if  ($IPHOT == 1) then
 $PHOTOS << EOD
 $TSTAR
 $RSTAR
 $DISTANCIA
+$TABLE
 $WLFILE
 $TABLEKH
+$TABLEPM
 $FILEPHOT
 EOD
 endif
