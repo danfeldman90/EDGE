@@ -27,7 +27,7 @@ set TSTAR='4060' #in K
 set RSTAR='2.8'  #in Rsun
 set DISTANCIA='400'  #in pasecs
 set MDOT='3.0e-8' #in Msun/yr 
-set MDOTSTAR=$MDOT #in Msun/yr. Mass accretion rate onto the star. Note that
+set MDOTSTAR='3.0e-8' #in Msun/yr. Mass accretion rate onto the star. Note that
 # it could be different to MDOT in the disk (e.g. if a planet is creating a 
 # cavity in the disk). This mass accretion rate is used to calculate the 
 # accretion luimnosity in opamean, irr_dosamax and the wall.
@@ -81,19 +81,19 @@ set lamaxs='amax0p25'
 
 #note: uncomment EPS and corresponding epsilonbig
 #------------------------
-#set EPS='.0001'
+#set EPS='0.0001'
 #set epsilonbig='12.5'
 #-----------------------
-#set EPS='.001'
+#set EPS='0.001'
 #set epsilonbig='12.5'
 #------------------------
-set EPS='.01'
+set EPS='0.01'
 set epsilonbig='12.4'
 #------------------------
-#set EPS='.1'
+#set EPS='0.1'
 #set epsilonbig='11.4'
 #------------------------
-#set EPS='.2'
+#set EPS='0.2'
 #set epsilonbig='10.2'
 #------------------------
 #set EPS='0.5'

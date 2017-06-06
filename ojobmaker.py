@@ -31,7 +31,7 @@ Written by Connor Robinson 6/20/16
 
 #Where you want the parameter file and the jobfiles to be placed
 #Also must be the location of the sample job file
-gridpath = '/Users/Connor/Desktop/Research/amanda/'
+gridpath = '/Users/Connor/Desktop/Research/diad/test/'
 
 #Tag that you can add to make the parameter file identifiable for a given run
 #Can leave it blank if you don't care. 
@@ -43,24 +43,25 @@ jobnumstart = 1
 #Define parameters to feed into file, must be filled with at least 1 value
 #Want to check that the values for amaxs and epsilon are possible in the sample job file
 
-amax      = [1.0]
-tstar     = [5035]
-rstar     = [1.38]
-dist      = [86]
+amax      = [1.0, 2.0]
+tstar     = [3000]
+rstar     = [1.9]
+dist      = [100]
 mui       = [.82]
-rout      = [170.0]
-rin       = [80]
-tau       = [0.035]
-power     = [0]
-fudgeorg  = [1]
-fudgetroi = [0.000001]
-fracsil   = [0.9]
-fracent   = [0.000001]
-fracforst = [0.000001]
-fracamc   = [0.001]
+rout      = [150.0]
+rin       = [100]
+tau       = [0.35]
+power     = [1]
+fudgeorg  = [2]
+fudgetroi = [0.001]
+fracsil   = [0.4]
+fracent   = [0.0001]
+fracforst = [0.001]
+fracamc   = [0.01]
+fracice   = [0.001]
 
 #No need to add an underscore/jobnumber, the script will do that for you.
-labelend = 'MPMus'
+labelend = 'test'
 
 #***********************************************
 #Unlikly you need to change anything below here.
@@ -68,10 +69,10 @@ labelend = 'MPMus'
 
 #Open up a file and print the parameter names
 f = open(gridpath+paramfiletag+'optthin_job_params.txt', 'w') 
-f.writelines('Job Number, amax, tstar, rstar, dist, mui, rout, rin, tau, power, fudgeorg, fudgetroi, fracsil, fracent, fracforst, fracamc \n')
-T
+f.writelines('Job Number, amax, tstar, rstar, dist, mui, rout, rin, tau, power, fudgeorg, fudgetroi, fracsil, fracent, fracforst, fracamc, fracice\n')
+
 #Write each iteration as a row in the table
-for ind, values in enumerate(itertools.product(amax, tstar, rstar, dist, mui, rout, rin, tau, power, fudgeorg, fudgetroi, fracsil, fracent, fracforst, fracamc)):
+for ind, values in enumerate(itertools.product(amax, tstar, rstar, dist, mui, rout, rin, tau, power, fudgeorg, fudgetroi, fracsil, fracent, fracforst, fracamc, fracice)):
     f.writelines(str(ind+jobnumstart)+', '+ str(values)[1:-1]+ '\n')
 f.close()
 
@@ -97,6 +98,7 @@ for i in range(len(table)):
     fracsil   = table['fracsil'][i], \
     fracent   = table['fracent'][i], \
     fracforst = table['fracforst'][i], \
-    fracamc   = table['fracamc'][i], \
+    fracamc   = table['fracamc'][i], 
+    fracice   = table['fracice'][i],\
     labelend  = label)
     

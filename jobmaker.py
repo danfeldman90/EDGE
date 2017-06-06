@@ -44,27 +44,35 @@ jobnumstart = 1
 
 #Define parameters to feed into file, must be filled with at least 1 value
 #Want to check that the values for amaxs and epsilon are possible in the sample job file
-amaxs   = [0.05]
-epsilon = [.1]
-mstar   = [0.57]
-tstar   = [3850, 4000, 4500]
-rstar   = [.66]
-dist    = [110]
-mdot    = [1e-9]
-mdotstar= [1e-9]
-tshock  = [8000]
-alpha   = [0.01]
-mui     = [.5]
-rdisk   = [300]
-temp    = [200]
+
+#Stellar parameters taken from Espaillat 2011 + McJunkin 2014
+mstar   = [1.3]  # Espaillat 2011 NEW 
+tstar   = [4730]  # Espaillat NEW
+rstar   = [1.6] # Espaillat 2011 NEW
+dist    = [140] # Espaillat 2011 NEW
+mdot    = [3.3e-9] # Espaillat 2011 NEW
+
+mdotstar= [1e-9] #VERY IMPORTANT! CODE BELOW MODIFED NOT TO USE THIS VALUE AND ASSUMES MDOT = MDOTSTAR
+
+amaxs   = [0.25, 10]
+epsilon = [0.1, 1.0, 0.001]
+alpha   = [1e-2]
+rdisk   = [30]
+
+temp    = [1400]
 altinh  = [1]
 
-fracolive = [1]
-fracpyrox = [0]
+lamaxb  = ['1mm']
+mui     = [0.5]
+tshock  = [8000]
+
+fracolive = [.65]
+fracpyrox = [.3]
 fracforst = [0]
+fracent   = [0.05]
 
 #No need to add an underscore/jobnumber, the script will do that for you.
-labelend = 'epscha18'
+labelend = 'test'
 
 #***********************************************
 #Unlikly you need to change anything below here.
@@ -73,10 +81,15 @@ labelend = 'epscha18'
 
 #Open up a file and print the parameter names
 f = open(gridpath+paramfiletag+'job_params.txt', 'w') 
-f.writelines('Job Number, amaxs, epsilon, mstar, tstar, rstar, dist, mdot, mdotstar, tshock, alpha, mui, rdisk, temp, altinh, fracolive, fracpyrox, fracforst \n') 
+f.writelines('Job Number, amaxs, epsilon, mstar, tstar, rstar, dist, mdot, mdotstar, tshock, alpha, mui, rdisk, temp, altinh, fracolive, fracpyrox, fracforst, fracent, lamaxb \n') 
 
 #Write each iteration as a row in the table
-for ind, values in enumerate(itertools.product(amaxs, epsilon, mstar, tstar, rstar, dist, mdot, mdotstar, tshock, alpha, mui, rdisk, temp, altinh, fracolive, fracpyrox, fracforst)):
+
+
+#NOTE: CURRENTLY MODIFIED TO WRITE THE SAME VALUE FOR MDOTSTAR AS MDOT!!!!!!!!
+
+
+for ind, values in enumerate(itertools.product(amaxs, epsilon, mstar, tstar, rstar, dist, mdot, mdot, tshock, alpha, mui, rdisk, temp, altinh, fracolive, fracpyrox, fracforst, fracent, lamaxb)):
     f.writelines(str(ind+jobnumstart)+', '+ str(values)[1:-1]+ '\n')
 f.close()
 
@@ -85,7 +98,9 @@ table = ascii.read(gridpath+paramfiletag+'job_params.txt')
 
 #Create the jobfiles using edge.job_file_create
 for i in range(len(table)):
-    label = labelend+'_'+edge.numCheck(i+jobnumstart)
+    label = labelend+'_'+str(i+jobnumstart).zfill(3)
+    
+    mdotstarval = table['mdot'][i]
     
     edge.job_file_create(i+jobnumstart, gridpath, \
     amaxs     = table['amaxs'][i],\
@@ -105,5 +120,7 @@ for i in range(len(table)):
     fracolive = table['fracolive'][i], \
     fracpyrox = table['fracpyrox'][i], \
     fracforst = table['fracforst'][i], \
+    fracent = table['fracent'][i], \
+    lamaxb    = table['lamaxb'][i].split("'")[1],\
     labelend  = label)
     
