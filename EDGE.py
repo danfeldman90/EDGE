@@ -937,10 +937,11 @@ def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
             
             start = text.find("set AMAXB='") + len("set AMAXB='")
             end = start + len(text[start:].split("'")[0])
-            text = text[:start]+paramstr+text[end:]
+            text = text[:start]+paramstr +text[end:]
+            
         
         #Fix the special case of temp + Tshock
-        if param == 'TEMP' or param == 'TSHOCK':
+        elif param == 'TEMP' or param == 'TSHOCK':
             start = text.find('set '+param+"=") + len('set '+param+"=")
             end = start + len(text[start:].split(".")[0])
             text = text[:start]+paramstr+text[end:]

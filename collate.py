@@ -115,7 +115,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
     jobnum = str(jobnum).zfill(fill)
     
     # If working with optically thin models
-    if optthin == True & shock == False:
+    if optthin == True and shock == False:
         
         #Read in file
         job = 'job_optthin'+jobnum
@@ -221,7 +221,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
         
         if nowall == 1 or noangle == 1 or nophot == 1:
             print("WARNING IN JOB "+jobnum+": KEYWORDS THAT HAVE NO AFFECT ON OPTICALLY THIN DUST HAVE BEEN USED (NOPHOT, NOWALL, NOANGLE)")
-        
+    
     # If working with job models start here
     elif optthin == False and shock == False:
         
