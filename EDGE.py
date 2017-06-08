@@ -1060,7 +1060,6 @@ def job_optthin_create(jobn, path, fill=3, **kwargs):
         start = text.find("#set lamax='amax"+amaxStr+"'")
         text = text[:start] + text[start+1:]
     
-    
     # Now we can cycle through the easier changes desired:
     dummykwargs = copy.deepcopy(kwargs)
     for param in dummykwargs:
@@ -1070,13 +1069,14 @@ def job_optthin_create(jobn, path, fill=3, **kwargs):
         
         #Set up the parameter
         paramstr = str(dummykwargs[param])
+        
         if param != 'labelend':
             param  = param.upper()
         if param == 'DIST':
             param = 'DISTANCIA'
         if param == 'TAU':
             param = 'TAUMIN'
-        
+            
         #Find region of text to replace
         start = text.find('set '+param+"='") + len('set '+param+"='")
         end = start + len(text[start:].split("'")[0])
