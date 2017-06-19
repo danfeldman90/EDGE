@@ -1799,7 +1799,7 @@ class TTS_Model(object):
         return
     
     @keyErrHandle
-    def calc_total(self, phot=1, wall=1, disk=1, dust=0, verbose=1, dust_fill=3, altinh=None, save=0):
+    def calc_total(self, phot=1, wall=1, disk=1, dust=0, verbose=1, dust_fill=3, altinh=None, save=0, OTDpath=None):
         """
         Calculates the total flux for our object (likely to be used for plotting and/or analysis). Once calculated, it
         will be added to the data attribute for this object. If already calculated, will overwrite.
@@ -1853,7 +1853,10 @@ class TTS_Model(object):
             componentNumber += 1
         if dust != 0:
             dustNum     = str(dust).zfill(dust_fill)
-            dustHDU     = fits.open(self.dpath+self.name+'_OTD_'+dustNum+'.fits')
+            if OTDpath == None:
+                dustHDU     = fits.open(self.dpath+self.name+'_OTD_'+dustNum+'.fits')
+            else:
+                dustHDU     = fits.open(OTDpath + self.name+'_OTD_'+dustNum+'.fits')
             if verbose:
                 print('CALC_TOTAL: Adding optically thin dust component to total flux.')
             if self.new:
