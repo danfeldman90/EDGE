@@ -768,7 +768,7 @@ def searchJobs(target, dpath=datapath, **kwargs):
     
     return job_matches
 
-def loadPickle(name, picklepath=datapath, num=None, red=0, fill = 3):
+def loadPickle(name, picklepath=datapath, num=None, red=0, fill = 3, py2 = False):
     """
     Loads in a pickle saved from the TTS_Obs class.
     
@@ -776,38 +776,75 @@ def loadPickle(name, picklepath=datapath, num=None, red=0, fill = 3):
     name: The name of the object whose observations are stored in the pickle.
     picklepath: The directory location of pickle. Default path is datapath, defined at top of this module.
     num: An optional number provided if there are multiple pickles for this object and you want to load a specific one.
+    red: If loading in a red object use this
+    fill: Zero padding on job numbers
+    py2: If using pickles created with python2 set this flag to True
     
     OUTPUT
     pickle: The object containing the data loaded in from the pickle.
     """
     
-    if red:
-        if num == None:
-            # Check if there is more than one
-            flist           = filelist(picklepath)
-            if (name + '_red_1.pkl') in flist:
-                print('LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!')
-            f               = open(picklepath+name+'_red.pkl', 'rb')
-            pickle          = cPickle.load(f)
-            f.close()
-        elif num != None:
-            f               = open(picklepath+name+'_red_'+str(num).zfill(fill)+'.pkl', 'rb')
-            pickle          = cPickle.load(f)
-            f.close()
-        return pickle
+    if py2:
+        if red:
+            if num == None:
+                # Check if there is more than one
+                flist           = filelist(picklepath)
+                if (name + '_red_1.pkl') in flist:
+                    print('LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!')
+                f               = open(picklepath+name+'_red.pkl', 'rb')
+                pickle          = cPickle.load(f, encoding = 'latin1')
+                f.close()
+            elif num != None:
+                f               = open(picklepath+name+'_red_'+str(num).zfill(fill)+'.pkl', 'rb')
+                pickle          = cPickle.load(f, encoding = 'latin1')
+                f.close()
+            return pickle
+        else:
+            if num == None:
+                # Check if there is more than one
+                flist           = filelist(picklepath)
+                if (name + '_obs_1.pkl') in flist:
+                    print('LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!')
+                f               = open(picklepath+name+'_obs.pkl', 'rb')
+                pickle          = cPickle.load(f, encoding = 'latin1')
+                f.close()
+            elif num != None:
+                f               = open(picklepath+name+'_obs_'+str(num).zfill(fill)+'.pkl', 'rb')
+                pickle          = cPickle.load(f, encoding = 'latin1')
+                f.close()
+        
     else:
-        if num == None:
-            # Check if there is more than one
-            flist           = filelist(picklepath)
-            if (name + '_obs_1.pkl') in flist:
-                print('LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!')
-            f               = open(picklepath+name+'_obs.pkl', 'rb')
-            pickle          = cPickle.load(f)
-            f.close()
-        elif num != None:
-            f               = open(picklepath+name+'_obs_'+str(num).zfill(fill)+'.pkl', 'rb')
-            pickle          = cPickle.load(f)
-            f.close()
+        if red:
+            if num == None:
+                # Check if there is more than one
+                flist           = filelist(picklepath)
+                if (name + '_red_1.pkl') in flist:
+                    print('LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!')
+                f               = open(picklepath+name+'_red.pkl', 'rb')
+                pickle          = cPickle.load(f)
+                f.close()
+            elif num != None:
+                f               = open(picklepath+name+'_red_'+str(num).zfill(fill)+'.pkl', 'rb')
+                pickle          = cPickle.load(f)
+                f.close()
+            return pickle
+        else:
+            if num == None:
+                # Check if there is more than one
+                flist           = filelist(picklepath)
+                if (name + '_obs_1.pkl') in flist:
+                    print('LOADPICKLE: Warning! There is more than one pickle file for this object! Make sure it is the right one!')
+                f               = open(picklepath+name+'_obs.pkl', 'rb')
+                pickle          = cPickle.load(f)
+                f.close()
+            elif num != None:
+                f               = open(picklepath+name+'_obs_'+str(num).zfill(fill)+'.pkl', 'rb')
+                pickle          = cPickle.load(f)
+                f.close()
+        
+    
+    
+    
         return pickle
 
 def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
@@ -841,6 +878,8 @@ def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
         fracforst - the fractional abundance of crystalline forsterite
         fracent - the fractional abundance of crystalline enstatite
         lamaxb - string for maximum grain size in the disk midplane (currently accepts '1mm' and '1cm')
+        amaxw - maximum grain size in the wall. If not supplied, code will assume that it is the same as the the grain size in the disk
+        d2g - Dust to gas mass ratio
         
         Some can still be included, such as dust grain compositions. They just aren't
         currently supported. If any supplied kwargs are unused, it will print at the end.
@@ -891,6 +930,56 @@ def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
         
         del kwargs['amaxs']
     
+    
+    #Now handle the case of the wall having different grain sizes.
+    if 'amaxw' in kwargs:
+        #Break grain size into something parsable
+        amaxwVal = kwargs['amaxw']
+        
+        
+        if amaxwVal != 10 and amaxVal != 100:
+            amaxwStr = str(amaxwVal)
+        elif int(amaxwVal) == 10:
+            amaxwStr = '10'
+        elif amaxwVal == 100:
+            amaxwStr = '100'
+        
+        #Add a # to the one that was missing one
+        start = text.find('\nset AMAXW=')
+        text = text[:start+1]+'#'+text[start+1:]
+        
+        start = text[start:].find('\nset lamaxw') + start
+        text = text[:start+1]+'#'+text[start+1:]
+        
+        
+        #Now remove the # for the selected grain size
+        start = text.find("#set AMAXW='"+amaxwStr)
+        text = text[:start] + text[start+1:]
+        
+        start = text[start:].find('#set lamaxw=') + start
+        text = text[:start] + text[start+1:]
+        
+        del kwargs['amaxw']
+        
+    
+    #Handles the case where amaxw is not supplied by assuming making it the same as amax
+    else:
+        #Add a # to the one that was missing one
+        start = text.find('\nset AMAXW=')
+        text = text[:start+1]+'#'+text[start+1:]
+        
+        start = text[start:].find('\nset lamaxw') + start
+        text = text[:start+1]+'#'+text[start+1:]
+        
+        #Now remove the # for the selected grain size
+        start = text.find("#set AMAXW=$AMAXS")
+        text = text[:start] + text[start+1:]
+        
+        start = text[start:].find('#set lamaxw=') + start
+        text = text[:start] + text[start+1:]
+        
+        
+    
     # Now, we examine the epsilon parameter if a value provided:
     if 'epsilon' in kwargs:
         epsVal = kwargs['epsilon']
@@ -911,6 +1000,7 @@ def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
         text = text[:start] + text[start+1:]
         
         del kwargs['epsilon']
+        
     
     #Now go through the rest of the parameters
     dummykwargs = copy.deepcopy(kwargs)
@@ -938,7 +1028,6 @@ def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
             start = text.find("set AMAXB='") + len("set AMAXB='")
             end = start + len(text[start:].split("'")[0])
             text = text[:start]+paramstr +text[end:]
-            
         
         #Fix the special case of temp + Tshock
         elif param == 'TEMP' or param == 'TSHOCK':
@@ -950,6 +1039,16 @@ def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
             start = text.find('set '+param+'=') + len('set '+param+'=')
             end = start + len(text[start:].split("#")[0])
             text = text[:start]+paramstr+'    '+text[end:]
+        #Fix the special case of MDOTSTAR (Sometimes it is $MDOT)
+        elif param == 'MDOTSTAR':
+            start = text.find('set '+param+'=') + len('set '+param+'=')
+            end = start + len(text[start:].split("#")[0])
+            text = text[:start]+"'"+paramstr+"'"+' '+text[end:]
+        elif param == 'D2G':
+            start = text.find('set '+param+'=') + len('set '+param+'=')
+            end = start + len(text[start:].split("\n")[0])
+            text = text[:start]+paramstr+text[end:]
+        
         #Change the rest
         else:
             #Fix some names

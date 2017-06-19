@@ -123,7 +123,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
         try:
             f = open(path+job, 'r')
         except IOError:
-            print('MISSING JOB NUMBER '+jobnum+', RETURNING...')
+            print('COLLATE: MISSING OPTTHIN JOB NUMBER '+jobnum+', RETURNING...')
             return
         
         jobf  = f.read()
@@ -144,11 +144,11 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
         try:
             size = os.path.getsize(file[0])
         except IndexError:
-            print("WARNING IN JOB "+jobnum+": MISSING FORT16 FILE (OPTICALLY THIN DUST MODEL), ADDED 'FAILED' TAG TO HEADER")
+            print("COLLATE: WARNING IN JOB "+jobnum+": MISSING FORT16 FILE (OPTICALLY THIN DUST MODEL), ADDED 'FAILED' TAG TO HEADER")
             failed = True
             miss = 1
         if miss != 1 and size == 0:
-            print("WARNING IN JOB "+jobnum+": EMPTY FORT16 FILE (OPTICALLY THIN DUST MODEL), ADDED FAILED TAG TO HEADER")
+            print("COLLATE: WARNING IN JOB "+jobnum+": EMPTY FORT16 FILE (OPTICALLY THIN DUST MODEL), ADDED FAILED TAG TO HEADER")
             failed = True
         
         if failed == False:
@@ -175,7 +175,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
                     tempdata[i] = float('nan')
                     
             if floaterr == 1:
-                print('WARNING IN JOB '+jobnum+': FILES CONTAIN FLOAT OVERFLOW/UNDERFLOW ERRORS, THESE VALUES HAVE BEEN SET TO NAN')
+                print('COLLATE: WARNING IN JOB '+jobnum+': FILES CONTAIN FLOAT OVERFLOW/UNDERFLOW ERRORS, THESE VALUES HAVE BEEN SET TO NAN')
             
             axis_count = 2; #One axis for flux, one for wavelength
             dataarr = np.reshape(tempdata, (axis_count, len(tempdata)/axis_count))
@@ -220,7 +220,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
         hdu.writeto(destination+name+'_OTD_'+jobnum+'.fits', clobber = clob)
         
         if nowall == 1 or noangle == 1 or nophot == 1:
-            print("WARNING IN JOB "+jobnum+": KEYWORDS THAT HAVE NO AFFECT ON OPTICALLY THIN DUST HAVE BEEN USED (NOPHOT, NOWALL, NOANGLE)")
+            print("COLLATE: WARNING IN JOB "+jobnum+": KEYWORDS THAT HAVE NO AFFECT ON OPTICALLY THIN DUST HAVE BEEN USED (NOPHOT, NOWALL, NOANGLE)")
     
     # If working with job models start here
     elif optthin == False and shock == False:
@@ -231,7 +231,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
         try: 
             f = open(path+job, 'r')
         except IOError:
-            print('MISSING JOB FILE '+jobnum+', RETURNING...')
+            print('COLLATE: MISSING JOB FILE '+jobnum+', RETURNING...')
             return
         
         jobf = f.read()
@@ -241,14 +241,14 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
         labelend = jobf.split("set labelend='")[1].split("'")[0]
         
         if labelend != name+'_'+jobnum:
-            print('NAME IS NOT THE SAME AS THE NAME IN JOB '+jobnum+' LABELEND: '+labelend+', RETURNING...')
+            print('COLLATE: NAME IS NOT THE SAME AS THE NAME IN JOB '+jobnum+' LABELEND: '+labelend+', RETURNING...')
             return
             
         #Define what variables to record
         sparam = (['MSTAR', 'TSTAR', 'RSTAR', 'DISTANCIA','MDOT', 'MDOTSTAR','ALPHA', 'MUI', 'RDISK',
                    'AMAXS', 'EPS', 'WLCUT_ANGLE', 'WLCUT_SCATT', 'NSILCOMPOUNDS', 'SILTOTABUN',
                    'AMORPFRAC_OLIVINE', 'AMORPFRAC_PYROXENE', 'FORSTERITE_FRAC', 'ENSTATITE_FRAC', 
-                   'TEMP', 'ALTINH', 'TSHOCK'])
+                   'TEMP', 'ALTINH', 'TSHOCK', 'AMAXW', 'AMAXB'])
         dparam = np.zeros(len(sparam), dtype = float)
         
         #Parse variables according to convention in the job file
@@ -263,6 +263,21 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
                     elif dparam[ind] == 0. and num == num_amax-1:
                         dparam[ind] = 1000. #HANDLES THE CASE THAT MM SIZED DUST GRAINS EXIST IN JOBFILE
             
+            elif param == 'AMAXW':
+                num_amax = 10 #Number of choices for AMAX, including the case where amax can be 1mm (1000 microns)
+                for num in range(num_amax):
+                    
+                    if jobf.split("AMAXW='")[num+1].split("\n")[1][0] == '#':
+                        continue
+                    elif jobf.split("AMAXW='")[num+1].split("\n")[1][0] == 's':
+                        #Check if the wall has a different value than AMAXS. If not, assign it the value of AMAXS
+                        if len(jobf.split("\nset AMAXW=$AMAXS")) > 1:
+                            dparam[ind] = dparam[np.array(sparam) == 'AMAXS']
+                        else:
+                            dparam[ind] = float(jobf.split(param+"='")[num+1].split("'")[0])
+                    elif dparam[ind] == 0. and num == num_amax-1:
+                        dparam[ind] = 1000. #HANDLES THE CASE THAT MM SIZED DUST GRAINS EXIST IN JOBFILE
+            
             elif param == 'EPS':
                 for num in range(7):
                     if jobf.split("EPS='")[num+1].split("\n")[1][0] == '#' and num != 7:
@@ -270,7 +285,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
                     elif jobf.split("EPS='")[num+1].split("\n")[1][0] == 's':
                         dparam[ind] = float(jobf.split(param+"='")[num+1].split("'")[0])
                     else: 
-                        raise IOError('COLLATE FAILED ON EPSILON VALUE. FIX JOB FILE '+jobnum)
+                        raise IOError('COLLATE: FAILED ON EPSILON VALUE. FIX JOB FILE '+jobnum)
             
             elif param == 'TEMP' or param == 'TSHOCK':
                 try:
@@ -278,12 +293,24 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
                 except ValueError:
                     raise ValueError('COLLATE: MISSING . AFTER '+param+' VALUE, GO FIX IN JOB FILE ' +jobnum)
             
+            elif param == 'D2G':
+                try:
+                    dparam[ind] = float(jobf.split(param+'=')[1].split('\n'[0]))
+                except ValueError:
+                    raise ValueError('COLLATE: ERROR WITH PARSING D2G. SHOULD NOT HAVE ANYTHING ON LINE AFTER D2G VALUE, GO FIX IN JOB FILE '+jobnum)
+            
             elif param == 'ALTINH':
                 try:
                     dparam[ind] = float(jobf.split(param+"=")[1].split(" ")[0])
                 except ValueError:
-                    raise ValueError('COLLATE MISSING SPACE [ ] AFTER ALTINH VALUE, GO FIX IN JOB FILE '+jobnum)
-                    pdb.set_trace()
+                    raise ValueError('COLLATE: MISSING SPACE [ ] AFTER ALTINH VALUE, GO FIX IN JOB FILE '+jobnum)
+                    
+            elif param == 'AMAXB':
+                try:
+                    dparam[ind] = float(jobf.split("AMAXB=")[1].split("'")[1])
+                except ValueError:
+                    raise ValueError('COLLATE: ERROR WITH PARSING AMAXB, GO FIX IN JOB FILE '+jobnum)
+            
             elif param == 'MDOTSTAR':
                 #MDOTSTAR is set often set to $MDOT, but could also be set to a number
                 #If it is the same as MDOT/not there, grab the value of MDOT
@@ -296,7 +323,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
                     try:
                         nomdotstar = jobf.split(param+"=")[1]
                     except IndexError:
-                        print('WARNING IN JOB '+jobnum+ ': NO VALUE FOR MDOTSTAR IN JOBFILE, ASSUMING MDOTSTAR = MDOT')
+                        print('COLLATE: WARNING IN JOB '+jobnum+ ': NO VALUE FOR MDOTSTAR IN JOBFILE, ASSUMING MDOTSTAR = MDOT')
                     
             else:
                 dparam[ind] = float(jobf.split(param+"='")[1].split("'")[0])
@@ -333,7 +360,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
             try:
                 size = os.path.getsize(photfile[0])
             except IndexError:
-                print("WARNING IN JOB "+jobnum+": MISSING PHOTOSPHERE FILE, ADDED 'FAILED' TAG TO HEADER. NOPHOT SET TO 1") 
+                print("COLLATE: WARNING IN JOB "+jobnum+": MISSING PHOTOSPHERE FILE, ADDED 'FAILED' TAG TO HEADER. NOPHOT SET TO 1") 
                 nophot = 1
                 failed = True
                 miss = 1
@@ -345,7 +372,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
                 dataarr = np.concatenate((dataarr, phot['col2']))
                 axis_count += 1
             elif miss != 1 and size == 0:
-                print("WARNING IN JOB "+jobnum+": PHOT FILE EMPTY, ADDED 'FAILED' TAG TO HEADER. NOPHOT SET TO 1")
+                print("COLLATE: WARNING IN JOB "+jobnum+": PHOT FILE EMPTY, ADDED 'FAILED' TAG TO HEADER. NOPHOT SET TO 1")
                 nophot = 1
                 failed = True
         
@@ -360,7 +387,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
             try:
                 size = os.path.getsize(wallfile[0])
             except IndexError:
-                print("WARNING IN JOB "+jobnum+": MISSING FORT17 (WALL) FILE, ADDED 'FAILED' TAG TO HEADER. NOWALL SET TO 1")
+                print("COLLATE: WARNING IN JOB "+jobnum+": MISSING FORT17 (WALL) FILE, ADDED 'FAILED' TAG TO HEADER. NOWALL SET TO 1")
                 nowall = 1
                 failed = True
                 miss = 1
@@ -376,7 +403,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
                 axis_count += 1
             
             elif miss != 1 and size == 0:
-                print("WARNING IN JOB "+jobnum+": FORT17 (WALL) FILE EMPTY, ADDED 'FAILED' TAG TO HEADER. NOWALL SET TO 1")
+                print("COLLATE: WARNING IN JOB "+jobnum+": FORT17 (WALL) FILE EMPTY, ADDED 'FAILED' TAG TO HEADER. NOWALL SET TO 1")
                 failed = True
                 nowall = 1
         
@@ -391,7 +418,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
             try:
                 size = os.path.getsize(anglefile[0])
             except IndexError:
-                print("WARNING IN JOB "+jobnum+": MISSING ANGLE (DISK) FILE, ADDED 'FAILED' TAG TO HEADER. NOANGLE SET TO 1")
+                print("COLLATE: WARNING IN JOB "+jobnum+": MISSING ANGLE (DISK) FILE, ADDED 'FAILED' TAG TO HEADER. NOANGLE SET TO 1")
                 noangle = 1
                 failed = True
                 miss = 1
@@ -407,7 +434,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
                 axis_count += 1
                
             elif miss != 1 and size == 0:
-                print("WARNING IN JOB "+jobnum+": ANGLE (DISK) FILE EMPTY, ADDED 'FAILED' TAG TO HEADER. NOANGLE SET TO 1")
+                print("COLLATE: WARNING IN JOB "+jobnum+": ANGLE (DISK) FILE EMPTY, ADDED 'FAILED' TAG TO HEADER. NOANGLE SET TO 1")
                 failed = True
                 noangle = 1
         
@@ -422,7 +449,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
             try:
                 size = os.path.getsize(scattfile[0])
             except IndexError:
-                print("WARNING IN JOB "+jobnum+": MISSING SCATT FILE, ADDED 'FAILED' TAG TO HEADER. NOSCATT SET TO 1")
+                print("COLLATE: WARNING IN JOB "+jobnum+": MISSING SCATT FILE, ADDED 'FAILED' TAG TO HEADER. NOSCATT SET TO 1")
                 noscatt = 1
                 failed = True
                 miss = 1
@@ -438,7 +465,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
                 axis_count += 1
                 
             elif miss != 1 and size == 0 or miss != 1 and size < 100:
-                print("WARNING IN JOB "+jobnum+": SCATT FILE EMPTY, ADDED 'FAILED' TAG TO HEADER. NOSCATT SET TO 1")
+                print("COLLATE: WARNING IN JOB "+jobnum+": SCATT FILE EMPTY, ADDED 'FAILED' TAG TO HEADER. NOSCATT SET TO 1")
                 failed = True
                 noscatt = 1
             
@@ -447,7 +474,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
         
         if noextinct == 0:
             if noangle != 0:
-                print("WARNING IN JOB "+jobnum+": ANGLE (DISK) FILE "+jobnum+" REQUIRED FOR EXTINCTION FROM DISK. ADDED 'FAILED' TAG TO HEADER, NOEXTINCT SET TO 1")
+                print("COLLATE: WARNING IN JOB "+jobnum+": ANGLE (DISK) FILE "+jobnum+" REQUIRED FOR EXTINCTION FROM DISK. ADDED 'FAILED' TAG TO HEADER, NOEXTINCT SET TO 1")
                 failed = 1
                 noextinct = 1
             else:
@@ -470,7 +497,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
                 tempdata[i] = float('nan')
         
         if floaterr == 1:
-            print('WARNING IN JOB '+jobnum+': FILES CONTAIN FLOAT OVERFLOW/UNDERFLOW ERRORS, THESE VALUES HAVE BEEN SET TO NAN')
+            print('COLLATE: WARNING IN JOB '+jobnum+': FILES CONTAIN FLOAT OVERFLOW/UNDERFLOW ERRORS, THESE VALUES HAVE BEEN SET TO NAN')
         
         #Put data array into the standard form for EDGE
         dataarr = tempdata
@@ -517,11 +544,11 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
         
         #Get the Temperature structure data from the prop file
         if notemp == 0:
-            propfile = glob('prop*'+name+'_'+jobnum+'*')
+            propfile = glob(path+'prop*'+name+'_'+jobnum+'*')
             try:
                 size = os.path.getsize(propfile[0])
             except IndexError:
-                print("WARNING IN JOB "+jobnum+": MISSING PROP (PROPERTIES) FILE, ADDED 'FAILED' TAG TO HEADER. NOTEMP SET TO 1")
+                print("COLLATE: WARNING IN JOB "+jobnum+": MISSING PROP (PROPERTIES) FILE, ADDED 'FAILED' TAG TO HEADER. NOTEMP SET TO 1")
                 notemp =1
                 failed = True
                 miss = 1
@@ -578,7 +605,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
         try:
             f = open(path+job, 'r')
         except IOError:
-            print('MISSING JOB NUMBER '+jobnum+', RETURNING...')
+            print('COLLATE: MISSING SHOCK JOB NUMBER '+jobnum+', RETURNING...')
             return
         
         jobf = f.read()
@@ -619,7 +646,7 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
         try:
             data = np.genfromtxt(path+'fort30.'+name+jobnum, skip_header = datastart, usecols = [1,2,3,4], skip_footer = footer)
         except StopIteration:
-            print('MODEL '+jobnum+' FAILED, RETURNING...')
+            print('COLLTE: MODEL '+jobnum+' FAILED, RETURNING...')
             return
         
         #Convert data into erg cm^-1 s^-1
@@ -769,7 +796,7 @@ def head(name, jobnum, path='', optthin = 0, fill = 3):
 
     print(repr(HDU[0].header))
 
-def masscollate(name, destination = '',path = '', jobnum = '', all = True, optthin=0, clob=0, fill=3, noextinct = 0, noangle = 0, nowall = 0, nophot = 0, noscatt = 1, shock= 0):
+def masscollate(name, destination = '',path = '', jobnum = None, optthin=0, clob=0, fill=3, noextinct = 0, noangle = 0, nowall = 0, nophot = 0, noscatt = 1, shock= 0):
     '''
     collate.masscollate
     
@@ -780,28 +807,22 @@ def masscollate(name, destination = '',path = '', jobnum = '', all = True, optth
         name: Name of the object
     
     OPTIONAL INPUTS:
-        jobnum: If you are providing a list/numpy array of the job numbers that you want to collate, set jobnum equal to that list/array
+        jobnum: List/numpy array of the specfic job numbers that you want to collate. Default is 'None', which will collate all 
+                the jobs in the folder specified by path.
         path: Path to the all of the output from diad. Default is the current directory.
         destination: Path to where you want the collated files to go. Default is the current directory.
         
     KEYWORDS:
-        all: Will collate all of the files at a given location with the indicated keywords, no need to supply list to jobnum if this is used. Default is true.
         Rest of the optional keywords are the same as collate
     
     '''
     
-    #Check to see if neither jobnum or all is used
-    if jobnum == None and all == False:
-        print("ERROR: NO JOBS COLLATED. PROVIDE VALUES FOR 'jobnum' OR USE THE 'all = True' KEYWORD")
-        return
-    
-    #Get the list of job numbers if using the all keyword
-    if all == True:
+    #Get the list of job numbers if there are no specific models
+    if jobnum == None:
         if optthin == 1:
             files = glob(path+'job_optthin'+'?'*fill)
         else:
             files = glob(path+'job'+'?'*fill)
-        
         
         #If there are no files found, report it and return
         if len(files) == 0:
@@ -810,19 +831,11 @@ def masscollate(name, destination = '',path = '', jobnum = '', all = True, optth
                 return
             else:
                 print('NO JOB FILES FOUND IN '+path+' RETURNING...')
-                
+                return
+        
         jobnum = [x[-fill:] for x in files]
-        
-        
-        #Collate the files 
-        for job in jobnum:
-            collate(path, job, name, destination, optthin=optthin, clob=clob, fill=fill, noextinct = noextinct, noangle = noangle, nowall = nowall, nophot = nophot, noscatt = noscatt, shock = shock)
-            
-        
     
-    
-    
-    
-    
-    
+    #Collate the files 
+    for job in jobnum:
+        collate(path, job, name, destination, optthin=optthin, clob=clob, fill=fill, noextinct = noextinct, noangle = noangle, nowall = nowall, nophot = nophot, noscatt = noscatt, shock = shock)
     
