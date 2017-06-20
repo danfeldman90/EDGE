@@ -12,7 +12,6 @@ import os#!/usr/bin/env python
 # Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
 # Last updated: 12/14/16 by Connor, Dan and Kike!
 
-
 #---------------------------------------------IMPORT RELEVANT MODULES--------------------------------------------
 import numpy as np
 import matplotlib.pyplot as plt
