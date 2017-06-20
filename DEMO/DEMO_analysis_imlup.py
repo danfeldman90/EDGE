@@ -85,7 +85,7 @@ for job in jobs:
             #Calculate the total emission from all the components of the disk + star
             model.calc_total(altinh = alt, verbose = 0)
             #Append the chi2 vlaue and the height of the wall
-            chiwall.append([alt, edge.model_rchi2(targ, model, wp = .5, non_reduce = 1)])
+            chiwall.append([alt, edge.model_rchi2(targ, model])
         
         #Convert the list into an array
         chiwall = np.array(chiwall)
@@ -96,7 +96,7 @@ for job in jobs:
         model.dataInit()
         model.calc_total(altinh = bestwall[0],verbose = 0)
         
-        chi2.append([float(job), edge.model_rchi2(targ, model, wp = .5, non_reduce =1), bestwall[0]])
+        chi2.append([float(job), edge.model_rchi2(targ, model), bestwall[0]])
         print(job)
 
 chi2 = np.array(chi2)

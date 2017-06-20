@@ -1,16 +1,7 @@
 #!/usr/bin/env python
 # Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
-
-#---------------------------------------------IMPORT RELEVANT MODULES--------------------------------------------
-import numpy as np
-import matplotlib.pyplot as plt
-#from astropy.io import ascii
-from astropy.io import fits
-import scipy.interpolate as sinterp
-#from matplotlib.backends.backend_pdf import PdfPages
-import os#!/usr/bin/env python
-# Created by Dan Feldman and Connor Robinson for analyzing data from Espaillat Group research models.
 # Last updated: 12/14/16 by Connor, Dan and Kike!
+
 
 #---------------------------------------------IMPORT RELEVANT MODULES--------------------------------------------
 import numpy as np
@@ -36,9 +27,9 @@ plt.rc('figure', autolayout=True)
 
 #-----------------------------------------------------PATHS------------------------------------------------------
 # Folders where model output data and observational data can be found:
-edgepath        = '/Users/Connor/Desktop/Research/diad/EDGE/'
+edgepath        = os.path.dirname(os.path.realpath(__file__))+'/'
+filterspath     = edgepath+'Filters/'
 datapath        = '/Users/Connor/Desktop/Research/iceline/data/'
-#figurepath      = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/Look_SEDs/CVSO107/'
 figurepath      = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/Models/Full_CVSO_Grid/CVSO58_sil/'
 shockpath       = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/ob1bspectra/'
 
@@ -49,7 +40,7 @@ def keyErrHandle(func):
     """
     A decorator to allow methods and functions to have key errors, and to print the failed key.
     """
-    
+
     def handler(*args, **kwargs):
         try:
             func(*args, **kwargs)
@@ -63,14 +54,14 @@ def keyErrHandle(func):
 def filelist(path):
     """
     Returns a list of files in a directory. Pops out hidden values.
-    
+
     INPUTS
     path: The directory path from which we wish to grab a file list.
-    
+
     OUTPUT
     flist: The file list. It should be devoid of hidden files.
     """
-    
+
     flist       = os.listdir(path)                              # Full list of files
     hid         = []
     for f in flist:
@@ -81,79 +72,79 @@ def filelist(path):
     return flist
 
 def deci_to_time(ra=None, dec=None):
-    """    
+    """
     Converts decimal values of ra and dec into arc time coordinates.
-    
+
     INPUTS
     ra: The float value of right ascension.
     dec: The float value of declination.
-    
+
     OUTPUTS
     new_ra: The converted RA. If no ra supplied, returns -1
     new_dec: The converted dec. If no dec supplied, returns -1
     """
-    
+
     new_ra  = -1
     new_dec = -1
-    
+
     if ra is not None:
         if type(ra) != float:
-            raise ValueError('DECI_TO_TIME: RA is not a float. Cannot convert.')  
-          
+            raise ValueError('DECI_TO_TIME: RA is not a float. Cannot convert.')
+
         # First, we find the number of hours:
         hours    = ra / 15.0
         hoursInt = int(hours)
         hours    = hours - hoursInt
-        
+
         # Next, we want minutes:
         minutes  = hours * 60.0
         minInt   = int(minutes)
         minutes  = minutes - minInt
-        
+
         # Lastly, seconds:
         seconds  = minutes * 60.0
-        new_ra   = '{0:02d} {1:02d} {2:.2f}'.format(hoursInt, minInt, seconds) 
-    
+        new_ra   = '{0:02d} {1:02d} {2:.2f}'.format(hoursInt, minInt, seconds)
+
     if dec is not None:
         if type(dec) != float:
             raise ValueError('DECI_TO_TIME: Dec is not a float. Cannot convert.')
-        
+
         # For dec, have to check and store the sign:
         if dec < 0.0:
             sign = '-'
         else:
             sign = '+'
         dec      = abs(dec)
-        
+
         # First, we find the number of degrees:
         degInt   = int(dec)
         deg      = dec - degInt
-        
+
         # Next, we want minutes:
         minutes  = deg * 60.0
         minInt   = int(minutes)
         minutes  = minutes - minInt
-        
+
         # Lastly, seconds:
         seconds  = minutes * 60.0
         new_dec  = '{0:s}{1:02d} {2:02d} {3:.2f}'.format(sign, degInt, minInt, seconds)
-    
+
     return new_ra, new_dec
 
 def time_to_deci(ra='', dec=''):
     """
     Converts arc time coordinates of ra and dec into degree values. Adapted from BDNYC
     code written by Joe Filippazzo.
-    
+
     INPUTS
     ra: The string coordinates of right ascension.
     dec: The string coordinates of declination.
-    
+
     OUTPUTS
     RA: The converted RA.
     DEC: The converted dec.
     """
-    
+
     RA, DEC, rs, ds = '', '', 1, 1
     if dec:
         D, M, S     = [float(i) for i in dec.split()]
@@ -161,14 +152,14 @@ def time_to_deci(ra='', dec=''):
             ds, D   = -1, abs(D)
         deg = D + (M/60) + (S/3600)
         DEC = '{0}'.format(deg*ds)
-    
+
     if ra:
         H, M, S     = [float(i) for i in ra.split()]
         if str(H)[0] == '-':
             rs, H   = -1, abs(H)
         deg = (H*15) + (M/4) + (S/240)
         RA  = '{0}'.format(deg*rs)
-    
+
     if ra and dec:
         return (RA, DEC)
     else:
@@ -177,20 +168,20 @@ def time_to_deci(ra='', dec=''):
 def calcAngularDist(coords1, coords2):
     """
     Calculates the angular distance between two points on the sky. Inputs should be in degrees.
-    
+
     INPUTS
     coords1: A list containing the RA and Dec for the first position. Should be [RA, Dec]
     coords2: A list containing the RA and Dec for the second position. Also [RA, Dec]
-    
+
     OUTPUT
     angDist: The angular distance in degrees.
     """
-    
+
     deltaRA = float(coords1[0]) - float(coords2[0])
     deltaDEC= float(coords1[1]) - float(coords2[1])
     decRads = float(coords1[0])*np.pi/180.              # Dec in radians
     angDist = math.sqrt((deltaRA*math.cos(decRads)**2.0) + (deltaDEC**2.0))
-    
+
     return angDist
 
 
@@ -198,7 +189,7 @@ def calcAngularDist(coords1, coords2):
 def linearInterp(x0, x1, x2, y1, y2, y1err, y2err):
     """
     Linearly interpolates between two values assuming the y values have errors.
-    
+
     INPUTS
     x0: The x value of where you wish to interpolate.
     x1: The lower x value bound.
@@ -207,48 +198,48 @@ def linearInterp(x0, x1, x2, y1, y2, y1err, y2err):
     y2: The y value corresponding to x2.
     y1err: The error in the y1 value.
     y2err: The error in the y2 value.
-    
+
     OUTPUTS
     y0: The interpolated y value corresponding to x0.
     yerr: The error in y0.
     """
-    
+
     y0   = y1 + (y2-y1) * ((x0-x1)/(x2-x1))
     yerr = math.sqrt(2*(y1err**2) + (y2err**2))
-    
+
     return y0, yerr
 
 def convertFreq(value):
     """
     Convert a frequency value in s-1 to wavelength in microns. Should also work with arrays.
-    
+
     INPUTS
     value: A frequency value or array of frequency values in s-1 units.
-    
+
     OUTPUT
     wl: The wavelength or array of wavelength values in microns.
     """
-    
+
     c_microns   = 2.997924e14                                   # Speed of light in microns
     wl          = c_microns / value
-    
+
     return wl
 
 def convertJy(value, wavelength):
     """
     Convert a flux in Janskys to erg s-1 cm-2. Should also work with flux/wl arrays of same size.
-    
+
     INPUTS
     value: A flux value in the units of Jy.
     wavelength: The corresponding wavelength value in microns (or perhaps a central wavelength).
-    
+
     OUTPUT
     flux: The flux value in units of erg s-1 cm-2.
     """
-    
+
     c_microns   = 2.997924e14                                   # Speed of light in microns
     flux        = value * 1e-23 * (c_microns / wavelength)      # lamda*F_lambda or nu*F_nu
-    
+
     return flux
 
 def convertMag(value, band, jy='False', getwl='False'):
@@ -257,42 +248,42 @@ def convertMag(value, band, jy='False', getwl='False'):
     Currently handles:
         UBVRI
         JHK
-        LMNQ 
+        LMNQ
         griz
         MIPS(24,70,160)
         IRAC (3.6,4.5,5.8,8.0)
         W1-W4 (WISE)
-        
+
     References: http://people.physics.tamu.edu/lmacri/astro603/lectures/astro603_lect01.pdf
                 http://casa.colorado.edu/~ginsbura/filtersets.htm
                 http://www.astro.utoronto.ca/~patton/astro/mags.html
                 http://ircamera.as.arizona.edu/astr_250/Lectures/Lecture_13.htm
-                
+
     INPUTS
     value: A magnitude value (units of mag).
     band: The band corresponding to the magnitude value.
     jy: Boolean -- If False, will use convertJy() to convert the flux into erg s-1 cm-2. If True, will
                    leave the output value in Jy.
-    
+
     OUTPUTS
     flux: The flux value in erg s-1 cm-2.
     fluxJ: The flux value in Jy.
-    
+
     MODIFICATIONS BY CONNOR:
         Added ability to return the wavelength alongside the flux
-    
+
     """
-    
+
     # First convert to Janskys:
     if band.upper()     == 'U':
         fluxJ       = 1810. * (10.0**(value / -2.5))
-        wavelength  = 0.367                                     # In Microns                               
+        wavelength  = 0.367                                     # In Microns
     elif band.upper()   == 'B':
         fluxJ       = 4260. * (10.0**(value / -2.5))
-        wavelength  = 0.436                                    
+        wavelength  = 0.436
     elif band.upper()   == 'V':
         fluxJ       = 3640. * (10.0**(value / -2.5))
-        wavelength  = 0.545                                     
+        wavelength  = 0.545
     elif band.upper()   == 'R':
         fluxJ       = 3080. * (10.0**(value / -2.5))
         wavelength  = 0.638
@@ -368,20 +359,20 @@ def convertMag(value, band, jy='False', getwl='False'):
     elif band.upper() == 'GAIAG':
         fluxJ       = 3488 * (10.0**(value / -2.5))
         wavelength = .550
-        
-        
+
+
     else:
         raise ValueError('CONVERTMAG: Unknown Band given. Cannot convert.')
-    
+
     if jy == 'False':
         # Next, convert to flux from Janskys:
         flux        = convertJy(fluxJ, wavelength)  # Ok, so maybe this is a dependent function. Shhhhhhh! :)
-        
+
         if getwl == True:
             return flux, wavelength
         else:
             return flux
-    
+
     if getwl == True:
         return fluxJ, wavelength
     else:
@@ -390,41 +381,41 @@ def convertMag(value, band, jy='False', getwl='False'):
 def convertMagErr(flux, magerr):
     """
     Converts magnitude errors into flux errors
-    
+
     INPUT:
         flux: Flux values in any flux units (Doensn't matter which type, based on fractional uncertainty)
         magerr: Error in magnitudes
-    
+
     OUTPUT:
         fluxerr: Error in the flux units
-    
+
     """
-    
+
     fluxerr = np.abs(flux*(10**(-magerr/2.5) - 1))
     return fluxerr
-    
+
 
 def convertSptype(spT):
     """
     Converts a spectral type into its numerical equivalent, based on Alice Perez's conversion table.
-    
+
     INPUT
     spT: The spectral type. Examples include 'A4', 'F3.5', and 'M2.1'. Must be a string.
-    
+
     OUTPUT
-    spT_float: The spectral type as a float value. See the README file at 
+    spT_float: The spectral type as a float value. See the README file at
                https://github.com/yumiry/Teff_Lum for more details on the conversion.
     """
-    
+
     if type(spT) != str:
         raise ValueError('CONVERTSPTYPE: Spectral type must be a string!')
-    
+
     # Pull out the numerical value in spT, e.g., the 5 in 'M5':
     try:
         sub_val = float(spT[1:])
     except ValueError:
         raise ValueError('CONVERTSPTYPE: Spectral type not in correct format! Fix the numerical part.')
-    
+
     # Now, use the first value (e.g., M in 'M5') and the above numerical value to convert to float:
     if spT[0] == 'B':
         spT_float = 20.0 + sub_val
@@ -442,31 +433,31 @@ def convertSptype(spT):
         spT_float = 68.0 + sub_val
     else:
         raise ValueError('CONVERTSPTYPE: Spectral type not in correct format! Fix the spectral class.')
-    
+
     return spT_float
 
 def diskMassCalc(lFl, wl, temp, dist):
     """
-    
+
     THIS IS A TEST FUNCTION!
-    
+
     Calculates the disk mass based on a sub-mm flux value. Needs to be in Rayleigh-Jeans
     regime or else it doesn't work. This equation assumes implicity that the gas-to-dust
     ratio is 100. NOTE: THIS IS UNTESTED FOR ACCURACY.
-    
+
     INPUTS
     lFl: The flux value at the given wavelength, in units of erg s-1 cm-2
     wl: The wavelength of the band. It needs to be sufficiently in Rayleigh-Jeans regime. This
         should be given in microns.
     temp: The temperature of the dust in Kelvin.
     dist: The distance to your object in parsecs.
-    
+
     OUTPUT
     dmass: The disk mass in solar masses.
     """
-    
+
     print('WARNING! THIS IS UNTESTED!')
-    
+
     # Define the constants and convert to CGS units:
     K       = 1.381e-16             # Boltzmann constant in cgs
     C       = 3.0e10                # Speed of light in cgs
@@ -474,11 +465,11 @@ def diskMassCalc(lFl, wl, temp, dist):
     SOLMASS = 1.989e33              # Solar mass in cgs
     wl_cgs  = wl / 1e4              # Wavelength conversion from microns to cm
     d_cgs   = dist * 3.09e18        # Distance to object in cgs
-    
+
     # Calculate the disk mass using equation from Williams & Cieza 2011:
     dmass   = (NUM * lFl * (d_cgs**2.0) * (wl_cgs**4.0)) / (K * temp * (C**2.0))
     dmass   /= (SOLMASS)            # Convert from cgs to solar masses
-    
+
     return dmass
 
 
@@ -486,15 +477,15 @@ def diskMassCalc(lFl, wl, temp, dist):
 def apparent_to_absolute(d_pc, mag):
     """
     Converts apparent magnitude to absolute magnitude, given a distance to the object in pc.
-    
+
     INPUTS
     d_pc: Distance to the object in parsecs.
     mag: Apparent magnitude.
-    
+
     OUTPUT
     absMag: Absolute magnitude.
     """
-    
+
     absMag = mag - 5.0 * math.log10(d_pc / 10.0)
     return absMag
 
@@ -503,7 +494,7 @@ def apparent_to_absolute(d_pc, mag):
 def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, msize=7.0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1, leg=1, public=0):
     """
     Creates a plot of a model and the observations for a given target.
-    
+
     INPUTS
     model: The object containing the target's model. Should be an instance of the TTS_Model class. This is an optional input.
     obs: The object containing the target's observations. Should be an instance of the TTS_Obs class.
@@ -521,7 +512,7 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
     ylim: A list containing the lower and upper y-axis limits, respectively. Has default values.
     params: BOOLEAN -- If 1 (True), the parameters for the model will be printed on the plot.
     leg: BOOLEAN -- If 1 (True), the legend will be printed on the plot.
-    
+
     OUTPUT
     A plot. Can be saved or plotted to the screen based on the "save" input parameter.
     """
@@ -538,7 +529,7 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
     if save == 0:
         plt.clf()
     plt.figure(1)
-    
+
     # Plot the spectra first:
     for sind, skey in enumerate(speckeys):
         if 'err' not in obs.spectra[skey].keys():
@@ -547,8 +538,8 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
         else:
             plt.errorbar(obs.spectra[skey]['wl'], obs.spectra[skey]['lFl'], yerr=obs.spectra[skey]['err'], \
                          mec=colors[colkeys[sind]], fmt='o', mfc=colors[colkeys[sind]], mew=1.0, markersize=2, \
-                         ecolor=colors[colkeys[sind]], elinewidth=0.5, capsize=1.0, label=skey)    
-                         
+                         ecolor=colors[colkeys[sind]], elinewidth=0.5, capsize=1.0, label=skey)
+
     # Next is the photometry:
     for pind, pkey in enumerate(photkeys):
         # If an upper limit only:
@@ -621,21 +612,19 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
             modkeys         = model.data.keys()
             if 'phot' in modkeys:
                 plt.plot(model.data['wl'], model.data['phot'], ls='--', c='b', linewidth=2.0, label='Photosphere')
-            if 'iwall' in modkeys:
-                plt.plot(model.data['wl'], model.data['iwall'], ls='--', c='#53EB3B', linewidth=2.0, label='Inner Wall')
             if 'idisk' in modkeys:
                 plt.plot(model.data['wl'], model.data['idisk'], ls ='--', c = '#f8522c', linewidth = 2.0, label = 'Inner Disk')
             if 'odisk' in modkeys:
                 plt.plot(model.data['wl'], model.data['odisk'], ls ='--', c = '#024747', linewidth = 2.0, label = 'Outer Disk')
-                        
-            #REWORKING HOW PLOTTING WORKS!!!! CURRENTLY VERY CONFUSING.....
-#            else:
-#                try:
-#                    plt.plot(model.data['wl'], model.newIWall, ls='--', c='#53EB3B', linewidth=2.0, label='Wall')
-#                except AttributeError:
-#                if 'iwall' in modkeys:
-#                    plt.plot(model.data['wl'], model.data['iwall'], ls='--', c='#53EB3B', linewidth=2.0, label='Wall')
-                    
+            if 'iwall' in modkeys:
+                if 'owall' in modkeys:
+                    label = 'Inner Wall'
+                else:
+                    label = 'Wall'
+                try:
+                    plt.plot(model.data['wl'], model.newIWall, ls='--', c='#53EB3B', linewidth=2.0, label=label)
+                except AttributeError:
+                    plt.plot(model.data['wl'], model.data['iwall'], ls='--', c='#53EB3B', linewidth=2.0, label=label)
             if diskcomb:
                 try:
                     diskflux     = model.newOwall + model.data['disk']
@@ -644,7 +633,7 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
                         diskflux = model.data['owall'] + model.data['disk']
                     except KeyError:
                         print('LOOK: Error, tried to combine outer wall and disk components but one component is missing!')
-                    else:    
+                    else:
                         plt.plot(model.data['wl'], diskflux, ls='--', c='#8B0A1E', linewidth=2.0, label='Outer Disk')
             else:
                 try:
@@ -665,7 +654,7 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
             if 'total' in modkeys:
                 plt.plot(model.data['wl'], model.data['total'], c='k', linewidth=2.0, label='Combined Model')
     # Now, the relevant meta-data:
-    if model != None:    
+    if model != None:
         if params:
             plt.figtext(0.60,0.88,'Eps = '+ str(model.eps), color='#010000', size='9')
             plt.figtext(0.80,0.88,'Alpha = '+ str(model.alpha), color='#010000', size='9')
@@ -685,7 +674,7 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
             if 'idisk' in modkeys:
                 plt.figtext(0.60, 0.73, 'IDisk Rout = '+str(model.irdisk), color = '#010000', size = '9')
                 plt.figtext(0.80, 0.73, 'IDisk Jobn = '+str(model.ijobn), color = '#010000', size = '9')
-        
+
     # Lastly, the remaining parameters to plotting (mostly aesthetics):
     plt.xscale('log')
     plt.yscale('log')
@@ -696,7 +685,7 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
     plt.title(obs.name.upper())
     if leg:
         plt.legend(loc=3, numpoints = 1)
-    
+
     # Should we save or should we plot?
     if save:
         if jobn == None:
@@ -716,28 +705,28 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
         plt.clf()
     else:
         plt.show()
-        
+
     return
 
 def searchJobs(target, dpath=datapath, **kwargs):
     """
     Searches through the job file outputs to determine which jobs (if any) matches the set of input parameters.
-    
+
     INPUTS
     target: The name of the target we're checking against (e.g., cvso109, DMTau, etc.).
     **kwargs: Any keyword arguments (kwargs) supplied. These should correspond to the header filenames (not case sensitive). The code
               will loop through each of these kwargs and see if they all match.
-    
+
     OUTPUTS
-    job_matches: A numpy array containing all the jobs that matched the kwargs. Can be an empty array, single value array, or 
+    job_matches: A numpy array containing all the jobs that matched the kwargs. Can be an empty array, single value array, or
                  multivalued array. Will contain matches by their integer number.
     """
-    
+
     print('THIS MIGHT BE DEFUNCT!')
-    
+
     job_matches         = np.array([], dtype='str')
     targList            = filelist(dpath)
-    
+
     # Pop out all files that do not correspond to jobs:
     not_data            = []
     for f in targList:
@@ -747,7 +736,7 @@ def searchJobs(target, dpath=datapath, **kwargs):
             not_data.append(targList.index(f))
     for ind, val in enumerate(not_data):
         targList.pop(val - ind)
-    
+
     # Now go through the list and find any jobs matching the desired input parameters:
     for jobi, job in enumerate(targList):
         if 'OTD' in job:
@@ -764,7 +753,7 @@ def searchJobs(target, dpath=datapath, **kwargs):
             else:
                 job_matches = np.append(job_matches, job[-9:-5])
         fitsF.close()
-    
+
     return job_matches
 
 def loadPickle(name, picklepath=datapath, num=None, red=0, fill = 3, py2 = False):
@@ -841,9 +830,6 @@ def loadPickle(name, picklepath=datapath, num=None, red=0, fill = 3, py2 = False
                 pickle          = cPickle.load(f)
                 f.close()
         
-    
-    
-    
         return pickle
 
 def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
@@ -1093,7 +1079,7 @@ def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
 def job_optthin_create(jobn, path, fill=3, **kwargs):
     """
     Creates a new optically thin dust job file.
-    
+
     INPUTS
     jobn: The job number used to name the output job file.
     path: The path containing the sample job file, and ultimately, the output.
@@ -1117,22 +1103,22 @@ def job_optthin_create(jobn, path, fill=3, **kwargs):
         fracforst - fraction of forsterite by mass
         fracamc - fraction of amorphous carbon by mass
         fracice - fraction of ice by mass (I assume?)
-        
+
         Some can still be included, such as dust grain compositions. They just aren't
         currently supported. If any supplied kwargs are unused, it will print at the end.
-    
+
     OUTPUT
     A job file with the name job_optthinXXX, where XXX is the three-string number from 001 - 999. If
     No formal outputs are returned by this function; the file is created in the path directory.
     """
-    
+
     # First, load in the sample job file for a template:
     job_file = open(path+'job_optthin_sample', 'r')
     fullText = job_file.readlines()     # All text in a list of strings
     job_file.close()
-    
+
     text = ''.join(fullText)
-    
+
     # Now we run through the list of changes desired and change them:
     # If we want to change amax:
     if 'amax' in kwargs:
@@ -1149,59 +1135,59 @@ def job_optthin_create(jobn, path, fill=3, **kwargs):
             amaxStr = '100'
         elif amaxVal == 1000:
             amaxStr = '1000'
-        
+
         #add a pound sign to the one that was missing one.
         start = text.find('\nset lamax')
         text = text[:start+1]+'#'+text[start+1:]
-        
+
         #Remove the pound sign for the grain size we want
         start = text.find("#set lamax='amax"+amaxStr+"'")
         text = text[:start] + text[start+1:]
-    
+
     # Now we can cycle through the easier changes desired:
     dummykwargs = copy.deepcopy(kwargs)
     for param in dummykwargs:
-        
+
         #Remove the used kwarg
         del kwargs[param]
-        
+
         #Set up the parameter
         paramstr = str(dummykwargs[param])
-        
+
         if param != 'labelend':
             param  = param.upper()
         if param == 'DIST':
             param = 'DISTANCIA'
         if param == 'TAU':
             param = 'TAUMIN'
-            
+
         #Find region of text to replace
         start = text.find('set '+param+"='") + len('set '+param+"='")
         end = start + len(text[start:].split("'")[0])
-        
+
         #Replace the parameter
         text = text[:start]+paramstr+text[end:]
-    
+
     #Turn the text into something that can be written out:
     outtext = [s + '\n' for s in text.split('\n')]
-    
+
     # Once all changes have been made, we just create a new optthin job file:
     string_num  = str(jobn).zfill(fill)
     newJob      = open(path+'job_optthin'+string_num, 'w')
     newJob.writelines(outtext)
     newJob.close()
-    
+
     # Lastly, check for unused kwargs that may have been misspelled:
     if len(kwargs) != 0:
         print('JOB_OPTTHIN_CREATE: Unused kwargs, could be mistakes:')
         print(kwargs.keys())
-        
+
     return
 
-def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0, verbose = 1):
+def model_rchi2(obj, model, obsNeglect=[], wp=0.0, non_reduce=1, verbose = 1):
     """
     Calculates a reduced chi-squared goodness of fit.
-    
+
     INPUTS
     obj: The object containing the observations we are comparing to. Is an instance of TTS_Obs()
     model: The model to test. Must be an instance of TTS_Model(), with a calculated total.
@@ -1211,129 +1197,206 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.5, non_reduce=0, verbose = 1):
     non_reduce: BOOLEAN -- if True (1), will calculate a normal chi squared (not reduced).
                 If this is the case, the weighting will be 1 for the photometry, and for the
                 spectra will be the number of photometric points / number of spectra points.
-    
+
     OUTPUT
     total_chi: The value for the reduced chi-squared test on the model.
+
+    NOTE:
+    If synthetic fluxes want to be used when computing the chi square, these keywords
+    need to be used when adding photometry:
+    'CVSO', 'VISTA', 'IRAC', 'MIPS', 'CANA', 'PACS', 'WISE', 'SDSS', '2MASS'
+
+    New instruments can be added with time. If any instrument is added,
+    the instrKeylist should be updated in calc_filters and in add_photometry.
     """
-    
+
     #First check to see if there is a total component
     if 'total' not in model.data:
         if verbose:
             print("Model "+model.jobn+" does not have 'total' values, returning...")
         return -1
-    
-    
-    # Fit the photometry and the spectra separately. Start with photometry:
-    # Initialize empty arrays
-    wavelength = np.array([], dtype=float)
-    flux       = np.array([], dtype=float)
-    errs       = np.array([], dtype=float)
-    
-    # Build the flux and wavelength vectors, excluding data we don't care about:
+
+    # We compute the chi2 for the photometry and the spectra separately.
+    # Start with photometry:
+    chiSF = []
+    wavelength = []
+    flux = []
+    errs = []
+    max_lambda = 0.0
+    min_lambda = 1e10 # A big number
     for obsKey in obj.photometry.keys():
         if obsKey in obsNeglect:
+            # In order to be safe, we reset phot_dens to 0 when we discard some photometry
+            obj.phot_dens = 0.0
             continue                            # Skip any data you want to neglect
         if obsKey in obj.ulim:
             continue                            # Skip any upper limits
-        wavelength = np.append(wavelength, obj.photometry[obsKey]['wl'])
-        flux       = np.append(flux, obj.photometry[obsKey]['lFl'])
-        try:
-            errs   = np.append(errs, obj.photometry[obsKey]['err']/obj.photometry[obsKey]['lFl'])
-        except KeyError:
-            # if no error, assume 10%:
+        if obj.phot_dens == 0.0: # We do this just if phot_dens has not been computed and saved yet
+            # Maximum lambda, used later
+            if max(obj.photometry[obsKey]['wl']) > max_lambda:
+                max_lambda = max(obj.photometry[obsKey]['wl'])
+            # Minimum lambda, used later
+            if min(obj.photometry[obsKey]['wl']) < min_lambda:
+                min_lambda = min(obj.photometry[obsKey]['wl'])
+        # For the instruments with synthetic fluxes
+        if obsKey in model.filters.keys():
+            for ind,wl in enumerate(obj.photometry[obsKey]['wl']):
+                l = np.argmin(abs(model.IntFfilters[obsKeys]['wl']-wl)) # We find the band
+                obs_flux = obj.photometry[obsKey]['lFl'][ind]
+                model_flux = model.IntFfilters[obsKey]['lFl'][l]
+                try:
+                    obs_err = obj.photometry[obsKey]['err'][ind]
+                    chiSF.append((obs_flux - model_flux)/ obs_err)
+                except:
+                    # If there is no value for the error or it is 0, assume 10%
+                    chiSF.append((obs_flux - model_flux)/ (0.1 * obs_flux))
+        else:
+        # If we don't have a synthetic flux for that instrument, we will
+        # have to do some more work
+            wavelength.append(obj.photometry[obsKey]['wl'])
+            flux.append(obj.photometry[obsKey]['lFl'])
             try:
-                errs = np.append(errs, np.ones(len(obj.photometry[obsKey]['wl']))/10.0)
-            except TypeError:
-                errs = np.append(errs, 0.1)     # Fix for if there's only one data point
-        finally:
-            if np.isnan(np.sum(errs)):          # Fix if error is NaN
-                errsBad = np.where(np.isnan(errs))
-                errs[errsBad] = 0.1
-    
-    # Sort the arrays:
-    waveindex      = np.argsort(wavelength)     # Indices that sort the array
-    wavelength     = wavelength[waveindex]
-    flux           = flux[waveindex]
-    errs           = errs[waveindex]
-    
+                # Fix if error is NaN
+                if np.isnan(np.sum(obj.photometry[obsKey]['err'])):
+                    badErr = np.where(np.isnan(obj.photometry[obsKey]['err']))
+                    newErrs = obj.photometry[obsKey]['err']
+                    newErrs[badErr] = 0.1*obj.photometry[obsKey]['lFl'][badErr]
+                    errs.append(newErrs)
+                else:
+                    errs.append(obj.photometry[obsKey]['err'])
+            except KeyError:
+                # if no error, assume 10%:
+                errs.append(0.1 * obj.photometry[obsKey]['lFl'])
+
+    # Calculate the chi2 for the instruments with synthetic fluxes
+    chiSF = np.array(chiSF)
+    rchi_sqSF   = np.sum(chiSF*chiSF)
+
+    # For the instruments that do not have synthetic fluxes
+    wavelength = np.concatenate(wavelength)
+    flux = np.concatenate(flux)
+    errs = np.concatenate(errs)
+
     # Check and remove NaNs from the data, if any:
     if np.isnan(np.sum(flux)):
         badVals    = np.where(np.isnan(flux))   # Where the NaNs are located
         flux       = np.delete(flux, badVals)
         wavelength = np.delete(wavelength, badVals)
         errs       = np.delete(errs, badVals)
-    
     # If there are NaNs in the actual model, remove them:
     if np.isnan(np.sum(model.data['total'])):
         badValsMod = np.where(np.isnan(model.data['total']))
         for key in model.data.keys():
             model.data[key] = np.delete(model.data[key], badValsMod)
-    
+
+    # Sort the arrays:
+    waveindex      = np.argsort(wavelength)     # Indices that sort the array
+    wavelength     = wavelength[waveindex]
+    flux           = flux[waveindex]
+    errs           = errs[waveindex]
+
     # Interpolate the model so the observations and model are on the same grid:
     modelFlux      = np.interp(wavelength, model.data['wl'], model.data['total'])
-    
-    # Calculate the chi2:
-    chi            = (flux - modelFlux) / (errs*flux)
-    if non_reduce:
-        rchi_sqP   = np.sum(chi*chi)
-    else:
-        rchi_sqP   = np.sum(chi*chi) / (len(chi) - 1)
-    
+
+    # Calculate the chi for the instruments without synthetic fluxes
+    chiP = (flux - modelFlux) / errs
+    # The total chi2 for the photometry will be
+    rchi_sqP   = np.sum(chiP*chiP) + rchi_sqSF
+
+    # "Density" of photometric points, used later for the spectra weighting calculation
+    if obj.phot_dens == 0.0:
+    # We save it as an attribute so that it doesn't need to be calculated again
+        obj.phot_dens = (len(chiP) + len(chiSF)) / (np.log10(max_lambda) - np.log10(min_lambda))
+
     # Now, do the same thing but for the spectra:
-    # Initialize empty arrays
-    wavelengthS= np.array([], dtype=float)
-    fluxS      = np.array([], dtype=float)
-    errsS      = np.array([], dtype=float)
-    
-    # Build the flux and wavelength vectors, excluding data we don't care about:
-    for specKey in obj.spectra.keys():
-        if specKey in obsNeglect:
-            continue                            # Skip any data you want to neglect
-        wavelengthS= np.append(wavelengthS, obj.spectra[specKey]['wl'])
-        fluxS      = np.append(fluxS, obj.spectra[specKey]['lFl'])
-        try:
-            # if no error, assume 10%:
-            errsS  = np.append(errsS, obj.spectra[obsKey]['err']/obj.spectra[obsKey]['lFl'])
-        except KeyError:
-            errsS  = np.append(errsS, np.ones(len(obj.spectra[specKey]['wl']))/10.0)
-        finally:
-            if np.isnan(np.sum(errsS)):         # Fix if error is NaN
-                errsBadS = np.where(np.isnan(errsS))
-                errsS[errsBadS] = 0.1
-    
-    # Sort the arrays:
-    waveindexS     = np.argsort(wavelengthS)    # Indices that sort the array
-    wavelengthS    = wavelengthS[waveindexS]
-    fluxS          = fluxS[waveindexS]
-    errsS          = errsS[waveindexS]
-    
-    # Check and remove NaNs from the data, if any:
-    if np.isnan(np.sum(fluxS)):
-        badValsS   = np.where(np.isnan(fluxS))  # Where the NaNs are located
-        fluxS      = np.delete(fluxS, badValsS)
-        wavelengthS= np.delete(wavelengthS, badValsS)
-        errsS      = np.delete(errsS, badValsS)
-    
-    # Interpolate the model so the observations and model are on the same grid:
-    modelFluxS     = np.interp(wavelengthS, model.data['wl'], model.data['total'])
-    
-    # Calculate the chi2:
-    chiS           = (fluxS - modelFluxS) / (errsS*fluxS)
-    if non_reduce:
-        rchi_sqS   = np.sum(chiS*chiS)# * (float(len(chi))/len(chiS))
-        total_chi  = rchi_sqP + rchi_sqS
+    if len(obj.spectra.keys()) != 0: # If there is any spectrum
+        # Initialize empty lists
+        wavelengthS= []
+        fluxS      = []
+        errsS      = []
+
+        # Build the flux and wavelength vectors, excluding data we don't care about:
+        for specKey in obj.spectra.keys():
+            if specKey in obsNeglect:
+                continue                            # Skip any data you want to neglect
+            if wp == 0.0: # If weights are not provided
+                if specKey not in obj.spec_dens.keys():
+                    # We do this just once, then spec_dens will be saved
+                    # Computation of the weights for the spectrum
+                    max_lambdaS = max(obj.spectra[specKey]['wl'])
+                    min_lambdaS = min(obj.spectra[specKey]['wl'])
+                    obj.spec_dens[specKey] = len(obj.spectra[specKey]['wl']) / (np.log10(max_lambdaS) - np.log10(min_lambdaS))
+                ws = np.sqrt(obj.phot_dens / obj.spec_dens[specKey])
+            else: # If weights are provided, we will use them
+                ws = 1.0
+            # We save the wavelengths and fluxes in a list (to be converted to an array)
+            wavelengthS.append(obj.spectra[specKey]['wl'])
+            fluxS.append(obj.spectra[specKey]['lFl'])
+            # If we are computing the weights of the spectra, we will use them in the errors            max_lambdaS = max(obj.spectra[specKey]['wl'])
+            try:
+                # Fix if error is NaN
+                if np.isnan(np.sum(obj.spectra[obsKey]['err'])):
+                    newErrs = obj.spectra[obsKey]['err']
+                    newErrs[np.isnan(obj.spectra[obsKey]['err'])] = 0.1
+                    errsS.append(ws * newErrs)
+                else:
+                    errsS.append(ws * obj.spectra[obsKey]['err'] / obj.spectra[obsKey]['lFl'])
+            except KeyError:
+                # if no error, assume 10%:
+                errsS.append(ws * np.ones(len(obj.spectra[specKey]['wl']))/10.0)
+
+        # Make the lists arrays
+        wavelengthS = np.concatenate(wavelengthS)
+        fluxS = np.concatenate(fluxS)
+        errsS = np.concatenate(errsS)
+
+        # Sort the arrays:
+        waveindexS     = np.argsort(wavelengthS)    # Indices that sort the array
+        wavelengthS    = wavelengthS[waveindexS]
+        fluxS          = fluxS[waveindexS]
+        errsS          = errsS[waveindexS]
+
+        # Check and remove NaNs from the data, if any:
+        if np.isnan(np.sum(fluxS)):
+            badValsS   = np.where(np.isnan(fluxS))  # Where the NaNs are located
+            fluxS      = np.delete(fluxS, badValsS)
+            wavelengthS= np.delete(wavelengthS, badValsS)
+            errsS      = np.delete(errsS, badValsS)
+
+        # Interpolate the model so the observations and model are on the same grid:
+        modelFluxS     = np.interp(wavelengthS, model.data['wl'], model.data['total'])
+
+        # chi2 of spectra:
+        chiS = (fluxS - modelFluxS) / (errsS*fluxS)
+        rchi_sqS = np.sum(chiS*chiS)
+
+        # If weight of spectra was provided, use it now
+        if wp != 0.0
+            ws = 1.0 - wp
+            rchi_sqS = rchi_sqS * np.sqrt(ws)
+            rchi_sqP = rchi_sqP * np.sqrt(wp)
+
+        # Total chi squared
+        total_chi = rchi_sqP + rchi_sqS
     else:
-        rchi_sqS   = np.sum(chiS*chiS) / (len(chiS) - 1)
-        ws         = 1.0 - wp                   # total weights must add to 1
-        total_chi  = (wp*rchi_sqP) + (ws*rchi_sqS)
-    
+        # If there is no spectra, total chi squared will be the photometry chi_sq
+        total_chi = rchi_sqP
+
+    # Finally, if we want to reduce the chi_sq, we do it now.
+    # (even though it might not make a lot of sense if there are spectra)
+    if non_reduce == 0:
+        if len(obj.spectra.keys()) != 0: # If there is any spectrum
+            total_chi = total_chi / (len(chiP) + len(chiSF) + len(chiS) - 1)
+        else:
+            total_chi = total_chi / (len(chiP) + len(chiSF) - 1)
+
     return total_chi                            # Done!
 
 
 def BIC_Calc(obs, minChi, degFree=6, weight=None, ignoreKeys=[]):
     """
     Calculates the Bayesian Information Criteria (BIC) for your given model.
-    
+
     INPUTS
     obs: The observations object you're using for the chi-squared calculation.
     minChi: The minimum Chi-Squared value obtained from your grid.
@@ -1343,7 +1406,7 @@ def BIC_Calc(obs, minChi, degFree=6, weight=None, ignoreKeys=[]):
             'SpectraOnly' counts only the spectral points. The default counts the photometric and
             spectral points together with no weighting given to either.
     ignoreKeys: A list containing any keys you want ignored in the point count.
-    
+
     OUTPUT
     bic: The Bayesian Information Criteria (BIC) calculated given the inputs.
     """
@@ -1410,10 +1473,10 @@ def BIC_Calc(obs, minChi, degFree=6, weight=None, ignoreKeys=[]):
                 pointCounter    += 1
     else:
         raise IOError('BIC_CALC: You gave an invalid weighting!')
-    
-    # Now that we have the number of points (N), we can calculate the BIC:    
+
+    # Now that we have the number of points (N), we can calculate the BIC:
     bic = minChi + degFree * np.log(pointCounter)
-    
+
     return bic
 
 def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
@@ -1421,7 +1484,7 @@ def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
     Calculates the effective temperature and luminosity of a T-Tauri star. Uses either values based on
     Kenyon and Hartmann (1995), or Pecault and Mamajek (2013). This function is based on code written
     by Alice Perez at CIDA.
-    
+
     INPUTS
     sptype: The spectral type of your object. Can be either a float value, or an alphanumeric representation.
     mag: The magnitude used for correction. Must be either V band or J band.
@@ -1430,24 +1493,24 @@ def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
     params: Must be either 'KH' (for Kenyon & Hartmann) or 'PM' (for Pecault and Mamajek)
     picklepath: Where the star_param.pkl file is located. Default is hardcoded for where EDGE.py is located.
     jnotv: BOOLEAN -- if True (1), it sets 'mag' input to be J band magnitude rather than V band.
-    
+
     OUTPUTS
     Teff: The calculated effective temperature of the star (in Kelvin).
     lum: The calculated luminosity of the star in solar luminosities (L / Lsun).
     """
-    
+
     # First, we need to load in the pickle containing the conversions:
     stparam_pick = open(picklepath + 'star_param.pkl', 'rb')
     stparam_dict = cPickle.load(stparam_pick)
     stparam_pick.close()
-    
+
     # Next, create relevant interpolation grids based on desired params:
     # If the spectral type is not a number, we'll need to convert!
     if type(sptype) == float or type(sptype) == int:
         pass
     else:
         sptype = convertSptype(sptype)
-    
+
     if params == 'KH':
         print('STAR_PARAM: Will be using Kenyon & Hartmann values.')
         tempSpline = sinterp.UnivariateSpline(stparam_dict['KH']['SpType'], stparam_dict['KH']['Teff'], s=0)
@@ -1458,14 +1521,14 @@ def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
         boloSpline = sinterp.UnivariateSpline(stparam_dict['PM']['SpType'], stparam_dict['PM']['BC'], s=0)
     else:
         raise IOError('STAR_PARAM: Did not enter a valid input for params!')
-    
+
     # Calculate the effective temperature:
     Teff  = tempSpline(sptype)
     # Error calculation? Do we need to use log base 10?
-    
+
     # Calculate the luminosity utilizing bolometric correction and distance modulus:
     BCorr = boloSpline(sptype)
-    
+
     # Check if we have a J mag instead of a V mag:
     if jnotv:
         Mj   = mag + 5 - (5*np.log10(dist)) - 0.29*Av       # Aj/Av = 0.29 (Cardelli, Clayton and Mathis 1989)
@@ -1474,27 +1537,27 @@ def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
         Mv   = mag + 5 - (5*np.log10(dist)) - Av
         Mbol = Mv + BCorr
     lum = 10.0 ** ((-Mbol+4.74) / 2.5)
-    
+
     return float(Teff), lum
 
 def normalize(dataDict, normWL, normlFl):
     """
     Normalizes a given spectrum of data to the provided normalization wavelength and flux values. Optionally
     normalizes an associated error array.
-    
+
     INPUTS
     dataDict: The dictionary containing the data to normalize. Will have 'wl' and 'lFl' keys. 'err' is optional.
     normWL: The wavelength (in same unit as data's wl, typically microns) at which to normalize.
     normlFl: The flux value we are normalizing to at the given normalization wavelength.
-    
+
     OUTPUT
     normFlux: The normalized flux array.
     normErr: (optional) If errors are included, then this is the normalized errors.
     """
-    
+
     # Find out if/where the normalization wavelength and flux exist in the data:
     normInd = np.where(dataDict['wl'] >= normWL)[0][0]
-    
+
     # If the normalization wavelength is between two indices, interpolate the flux:
     if dataDict['wl'][normInd] != normWL:
         # Make sure no NaNs:
@@ -1511,22 +1574,22 @@ def normalize(dataDict, normWL, normlFl):
         if np.isnan(dataDict['lFl'][normInd]):
             raise ValueError('NORMALIZE: The flux is NaN at the normalization wavelength!')
         normVal = dataDict['lFl'][normInd]
-    
+
     # Now we normalize the flux:
     normFlux = (dataDict['lFl'] / normVal) * normlFl
-    
+
     # Normalize the error based on percent error:
     if 'err' in dataDict.keys():
         normErr  = (dataDict['err']/dataDict['lFl']) * normFlux
         return normFlux, normErr
-    
+
     return normFlux
 
 def MdotCalc(Umag, Rmag, d_pc, Temp, Mstar, Rstar):
     """
-    Calculates the accretion rate based on the relation in Gullbring et al. 1998, using the 
+    Calculates the accretion rate based on the relation in Gullbring et al. 1998, using the
     apparent U band magnitude and some stellar/disk properties.
-    
+
     INPUTS
     Umag: The U band apparent magnitude for your object.
     Rmag: The R band apparent magnitude for your object.
@@ -1535,11 +1598,11 @@ def MdotCalc(Umag, Rmag, d_pc, Temp, Mstar, Rstar):
     Mstar: The stellar mass of your object, in units of solar masses.
     Rstar: The stellar radius of your object, in units of solar radii.
     Rin: The inner radius of your disk, in AU.
-    
+
     OUTPUTS
     Mdot: The mass accretion rate for your object in solar masses per year.
     """
-    
+
     # Define the arrays containing the temperature, U-R pairs:
     temps   = (np.flipud(np.array([30000, 25400, 22000, 18700, 17000, 15400, 14000, 13000, 11900,
                          10500,  9520,  9230,  8970,  8720,  8460,  8200,  8350,  7850,
@@ -1553,7 +1616,7 @@ def MdotCalc(Umag, Rmag, d_pc, Temp, Mstar, Rstar):
                          0.94,  1.01,  1.07,  1.14,  1.16,  1.17,  1.24,  1.33,  1.4 ,
                          1.45,  1.52,  1.59,  1.74,  1.91,  2.13,  2.26,  2.63,  2.93,
                          3.21,  3.5 ,  3.79,  3.94,  4.14,  4.19,  4.25,  4.59,  4.87,  5.26])))
-    
+
     # First, calculate the U band magnitude of the photosphere:
     tempMatch     = np.where(temps == Temp)[0]
     if len(tempMatch) == 0:                         # Is there an exact match? If not, interpolate
@@ -1565,14 +1628,14 @@ def MdotCalc(Umag, Rmag, d_pc, Temp, Mstar, Rstar):
     # Convert to Absolute Magnitude:
     #uAbsMag = apparent_to_absolute(d_pc, Umag)
     #uPhotAbs= apparent_to_absolute(d_pc, Uphot)
-    
+
     # Calculate the U flux for the photosphere and star to get excess luminosity:
     photFlux= convertMag(Uphot, 'U') * 1e-3 * (0.068 / 0.367)
     starFlux= convertMag(Umag, 'U') * 1e-3 * (0.068 / 0.367)
     #starFlux= 4.2708040e-14
     #photFlux= convertMag(uPhotAbs, 'U')
     #starFlux= convertMag(uAbsMag, 'U')
-    
+
     L_u     = (4.0*math.pi) * (starFlux - photFlux) * (d_pc * 3.086e16)**2.0
     L_u_norm= L_u / 3.84e26
     #
@@ -1582,33 +1645,33 @@ def MdotCalc(Umag, Rmag, d_pc, Temp, Mstar, Rstar):
     # UmagSun = 5.61      # From Binney and Merrifield 1998
     # #UmagSun = 4.74
     # L_u     = 100.0**((UmagSun - uAbsMag)/5.0)      # Luminosity in U band / Lsun
-    
+
     # Use the U band luminosity to calculate the accretion luminosity:
     L_acc   = 3.84e26 * 10.0**(1.09*math.log10(L_u_norm) + 0.98)
-    
+
     # Lastly, back out the accretion rate:
     G       = 6.67e-11                              # G in meters
     #Rin_m   = Rin * 1.496e11                        # Rin in meters
     Rstar_m = Rstar * 6.955e8                       # Rstar in meters
     Mstar_kg= Mstar * 1.989e30                      # Mstar in kg
-    Mdot    = (Rstar_m * L_acc / (G*Mstar_kg)) / 0.8 * 3.16e7 / 1.989e30 
-    
+    Mdot    = (Rstar_m * L_acc / (G*Mstar_kg)) / 0.8 * 3.16e7 / 1.989e30
+
     return Mdot
 
 def binSpectra(obs, speckeys=[], ppbin=2):
     """
     Bin all the spectra in the obs object corresponding to the supplied
     keys.
-    
+
     INPUTS
     obs: The observations pickle, which should be an instance if TTS_Obs or Red_Obs.
     speckeys: The keys corresponding to the spectra that should be binned.
     ppbin: The number of points in a given bin.
-    
+
     OUTPUT
     Though no output is explicitly given, the binned spectra are saved to the observations pickle.
     """
-    
+
     if len(speckeys) == 0:
         print('BINSPECTRA: No keys were supplied. No binning will occur.')
     else:
@@ -1636,7 +1699,7 @@ def binSpectra(obs, speckeys=[], ppbin=2):
             obs.spectra[key]['lFl'] = binnedFlux
             if len(obs.spectra[key]) == 3:
                 obs.spectra[key]['err'] = binnedErr
-    
+
     return
 
 #---------------------------------------------------CLASSES------------------------------------------------------
@@ -1644,7 +1707,7 @@ class TTS_Model(object):
     """
     Contains all the data and meta-data for a TTS Model from the D'Alessio et al. 2006 models. The input
     will come from fits files that are created via Connor's collate.py.
-    
+
     ATTRIBUTES
     name: Name of the object (e.g., CVSO109, V410Xray-2, ZZ_Tau, etc.).
     jobn: The job number corresponding to this model.
@@ -1662,12 +1725,12 @@ class TTS_Model(object):
     tshock: The temperature of the shock at the stellar photosphere.
     temp: The temperature at the inner wall (1400 K maximum).
     altinh: Scale heights of extent of the inner wall.
-    wlcut_an: 
-    wlcut_sc: 
+    wlcut_an:
+    wlcut_sc:
     nsilcomp: Number of silicate compounds.
     siltotab: Total silicate abundance.
-    amorf_ol: 
-    amorf_py: 
+    amorf_ol:
+    amorf_py:
     forsteri: Forsterite Fractional abundance.
     enstatit: Enstatite Fractional abundance.
     rin: The inner radius in AU.
@@ -1678,31 +1741,33 @@ class TTS_Model(object):
     new: Whether or not the model was made with the newer version of collate.py.
     newIWall: The flux of an inner wall with a higher/lower altinh value.
     wallH: The inner wall height used by the look() function in plotting.
-    
+    filters: Filters used to calculate synthetic fluxes.
+    IntFfilters: Wavelengths and syntethic fluxes.
+
     METHODS
     __init__: Initializes an instance of the class, and loads in the relevant metadata.
     dataInit: Loads in the data to the object.
     calc_total: Calculates the "total" (combined) flux based on which components you want, then loads it into
                 the data attribute under the key 'total'.
     """
-    
+
     def __init__(self, name, jobn, dpath=datapath, fill=3):
         """
         Initializes instances of this class and loads the relevant data into attributes.
-        
+
         INPUTS
         name: Name of the object being modeled. Must match naming convention used for models.
         jobn: Job number corresponding to the model being loaded into the object. Again, must match convention.
         full_trans: BOOLEAN -- if 1 (True) will load data as a full or transitional disk. If 0 (False), as a pre-trans. disk.
         fill: How many numbers the input model file has (jobXXX vs. jobXXXX, etc.)
         """
-        
+
         # Read in the fits file:
         stringnum       = str(jobn).zfill(fill)                         # Convert the jobn to the proper format
         fitsname        = dpath + name + '_' + stringnum + '.fits'      # Fits filename, preceeded by the path from paths section
         HDUlist         = fits.open(fitsname)                           # Opens the fits file for use
         header          = HDUlist[0].header                             # Stores the header in this variable
-        
+
         # Initialize meta-data attributes for this object:
         self.name       = name
         self.jobn       = jobn
@@ -1731,30 +1796,32 @@ class TTS_Model(object):
         self.dpath      = dpath
         self.fill       = fill
         self.extcorr    = None
+        self.filters    = {}
+        self.IntFfilters= {}
         try:
             self.mdotstar = header['MDOTSTAR']
         except KeyError:
             self.mdotstar = self.mdot
-        
+
         HDUlist.close()
         return
-    
+
     def dataInit(self, verbose=1):
         """
         Initialize data attributes for this object using nested dictionaries:
         wl is the wavelength (corresponding to all three flux arrays). Phot is the stellar photosphere emission.
         iWall is the flux from the inner wall. Disk is the emission from the angle file. Scatt is the scattered
         light emission. Loads in self-extinction array if available.
-        
+
         INPUTS:
         verbose: BOOLEAN -- if 1 (True), will print out warnings about missing components.
         """
-        
+
         stringnum    = str(self.jobn).zfill(self.fill)
         fitsname     = self.dpath + self.name + '_' + stringnum + '.fits'
         HDUdata      = fits.open(fitsname)
         header       = HDUdata[0].header
-        
+
         # The new Python version of collate flips array indices, so must identify which collate.py was used:
         if 'EXTAXIS' in header.keys() or 'NOEXT' in header.keys():
             self.new = 1
@@ -1765,7 +1832,7 @@ class TTS_Model(object):
             # We will load in the components piecemeal based on the axes present in the header.
             # First though, we initialize with the wavelength array, since it's always present:
             self.data = {'wl': HDUdata[0].data[header['WLAXIS'],:]}
-            
+
             # Now we can loop through the remaining possibilities:
             if 'PHOTAXIS' in header.keys():
                 self.data['phot'] = HDUdata[0].data[header['PHOTAXIS'],:]
@@ -1793,10 +1860,10 @@ class TTS_Model(object):
         else:
             self.data = {'wl': HDUdata[0].data[:,0], 'phot': HDUdata[0].data[:,1], 'iwall': HDUdata[0].data[:,2], \
                          'disk': HDUdata[0].data[:,3]}
-        
+
         HDUdata.close()
         return
-    
+
     @keyErrHandle
     def calc_total(self, phot=1, wall=1, disk=1, dust=0, verbose=1, dust_fill=3, altinh=None, save=0, OTDpath=None):
         """
@@ -1918,22 +1985,147 @@ class TTS_Model(object):
             np.savetxt(filestring, outputTable, fmt='%.3e', delimiter=', ', header=headerStr, comments='#')
         
         return
-    
+
+    @keyErrHandle
+    def calc_filters(self,filterspath=filterspath,obj=''):
+        """
+        Calculates the synthetic fluxes for our object at several typical photometric bands (likely
+        to be used for chi square analysis). It reads the transmissivity of the filters of different instruments
+        and then convolves the total emission of the disk with that transmissivty. Once calculated, it
+        will be added to the IntFfilters attribute for this object. If already calculated, will overwrite.
+
+        INPUTS
+        obj: TTS_Obs object, from which the observed photometric bands will be used. If not provided,
+             synthethic fluces will be calculated for all photometric bands.
+
+        OUTPUT
+        A boolean value, depending on whether it encountered any key errors or not.
+
+        NOTE:
+        If synthetic fluxes want to be used when computing the chi square, these keywords
+        need to be used when adding photometry:
+        'CVSO', 'VISTA', 'IRAC', 'MIPS', 'CANA', 'PACS', 'WISE', 'SDSS', '2MASS'
+
+        New instruments can be added with time. If any instrument is added,
+        the instrKeylist should be updated here and in add_photometry.
+        """
+
+        try:
+            # If a TTS_Obs object is provided, it will calculate synthetic fluxes
+            # for the instruments found in the object.
+            instrKeylist = obj.photometry.keys()
+        except:
+            # If no TTS_Obs object is provided, it will calculate synthetic fluxes
+            # for "all" instruments
+            print('Calculating synthetic fluxes for all instruments and bands')
+            instrKeylist = ['CVSO', 'VISTA', 'IRAC','MIPS', 'CANA', 'PACS', 'WISE', 'SDSS', '2MASS']
+
+        for instrKey in instrKeylist:
+            # For each instrument, it first reads the transmissivities and saves
+            # them in the attribute filters as nested dictionaries.
+            if instrKey == 'PACS': # Herschel
+                PACS70filter         = np.loadtxt(filterspath+'PacsFilters/PACS_Tr70.dat')
+                PACS160filter        = np.loadtxt(filterspath+'PacsFilters/PACS_Tr160.dat')
+                self.filters[instrKey] = {'f70.0': {'wl':PACS70filter[:,0],'trans':PACS70filter[:,1]},\
+                                        'f160.0': {'wl':PACS160filter[:,0],'trans':PACS160filter[:,1]}}
+            elif instrKey == 'IRAC': # Spitzer
+                I1filter             = np.loadtxt(filterspath+'filtrosSpitzer/iractr1.dat')
+                I2filter             = np.loadtxt(filterspath+'filtrosSpitzer/iractr2.dat')
+                I3filter             = np.loadtxt(filterspath+'filtrosSpitzer/iractr3.dat')
+                I4filter             = np.loadtxt(filterspath+'filtrosSpitzer/iractr4.dat')
+                self.filters[instrKey] = {'f3.6': {'wl':I1filter[:,0],'trans':I1filter[:,1]},\
+                                        'f4.5': {'wl':I2filter[:,0],'trans':I2filter[:,1]},\
+                                        'f5.8': {'wl':I3filter[:,0],'trans':I3filter[:,1]} ,\
+                                        'f8.0': {'wl':I4filter[:,0],'trans':I4filter[:,1]}}
+            elif instrKey == 'MIPS': #Spitzer
+                MIPSfilter           = np.loadtxt(filterspath+'filtrosSpitzer/mipstr1.dat')
+                self.filters[instrKey] = {'f24.0': {'wl':MIPSfilter[:,0],'trans':MIPSfilter[:,1]}}
+            elif instrKey == '2MASS':
+                J2MASSfilter      = np.loadtxt(filterspath+'2MASSfilters/2MASSJ.dat')
+                H2MASSfilter      = np.loadtxt(filterspath+'2MASSfilters/2MASSH.dat')
+                K2MASSfilter      = np.loadtxt(filterspath+'2MASSfilters/2MASSKs.dat')
+                self.filters[instrKey] = {'f1.235': {'wl':J2MASSfilter[:,0]/10e3,'trans':J2MASSfilter[:,1]},\
+                                        'f1.662': {'wl':H2MASSfilter[:,0]/10e3,'trans':H2MASSfilter[:,1]},\
+                                        'f2.159': {'wl':K2MASSfilter[:,0]/10e3,'trans':K2MASSfilter[:,1]}}
+            elif instrKey == 'WISE':
+                W1filter      = np.loadtxt(filterspath+'WISE_filters/RSR-W1.txt')
+                W2filter      = np.loadtxt(filterspath+'WISE_filters/RSR-W2.txt')
+                W3filter      = np.loadtxt(filterspath+'WISE_filters/RSR-W3.txt')
+                W4filter      = np.loadtxt(filterspath+'WISE_filters/RSR-W4.txt')
+                self.filters[instrKey] = {'f3.4': {'wl':W1filter[:,0],'trans':W1filter[:,1]},\
+                                        'f4.6': {'wl':W2filter[:,0],'trans':W2filter[:,1]},\
+                                        'f12.0': {'wl':W3filter[:,0],'trans':W3filter[:,1]},\
+                                        'f22.0': {'wl':W4filter[:,0],'trans':W4filter[:,1]}}
+            elif instrKey == 'CVSO': # CIDA Variability Survey
+                VCVSOfilter        = np.loadtxt(filterspath+'Johnson-Cousins_filters/Bessel_V-1_km.txt')
+                RCVSOfilter        = np.loadtxt(filterspath+'Johnson-Cousins_filters/Bessel_R-1_km.txt')
+                ICVSOfilter        = np.loadtxt(filterspath+'Johnson-Cousins_filters/Bessel_I-1_km.txt')
+                self.filters[instrKey] = {'f0.55': {'wl':VCVSOfilter[:,0]*0.001,'trans':VCVSOfilter[:,1]},\
+                                        'f0.64': {'wl':RCVSOfilter[:,0]*0.001,'trans':RCVSOfilter[:,1]},\
+                                        'f0.79': {'wl':ICVSOfilter[:,0]*0.001,'trans':ICVSOfilter[:,1]}}
+            elif instrKey == 'CANA': # CanaryCam
+                Si2filter        = np.loadtxt(filterspath+'CanariCam_filters/Si2.txt')
+                Si4filter        = np.loadtxt(filterspath+'CanariCam_filters/Si4.txt')
+                Si5filter        = np.loadtxt(filterspath+'CanariCam_filters/Si-5.txt')
+                Si6filter        = np.loadtxt(filterspath+'CanariCam_filters/Si-6.txt')
+                self.filters[instrKey] = {'f8.7': {'wl':Si2filter[:,0],'trans':Si2filter[:,1]},\
+                                        'f10.3': {'wl':Si4filter[:,0],'trans':Si4filter[:,1]},\
+                                        'f11.6': {'wl':Si5filter[:,0],'trans':Si5filter[:,1]},\
+                                        'f12.5': {'wl':Si6filter[:,0],'trans':Si6filter[:,1]}}
+            else:
+                print('No transmissivities found for instrument '+instrKey)
+                continue
+
+            intFlux = []
+            wlcfilter = []
+            for bandkey in self.filters[instrKey].keys():
+                # For each band for the given instrument
+                # First it interpolates the model at the wavelengths for which
+                # we have values of the transmissivity
+                Fmodatfilter = np.interp(self.filters[instrKey][bandkey]['wl'],\
+                                         self.data['wl'], self.data['total'])
+
+                # Now it integrates and convolves the model with the transmissivity
+                # of that particular band. It uses a trapezoidal integration.
+                s1 = np.trapz(Fmodatfilter*self.filters[instrKey][bandkey]['trans'],\
+                              x=self.filters[instrKey][bandkey]['wl'])
+                # It integrates the transmissivity to normalize the convolved flux
+                s2 = np.trapz(self.filters[instrKey][bandkey]['trans'],\
+                              x=self.filters[instrKey][bandkey]['wl'])
+
+                intF = s1 / s2
+
+                wlcfilter.append(float(bandkey[1:])) # Central wavelength of band (microns)
+                intFlux.append(intF) # Synthetic flux at the band
+
+            # We convert the two resulting lists in arrays and sort them
+            wlcfilter = np.array(wlcfilter)
+            sortindex = np.argsort(wlcfilter)
+            wlcfilter = wlcfilter[sortindex]
+            intFlux = np.array(intFlux)[sortindex]
+
+            # And it saves the central wavelengths and synthetic fluxes of all
+            # the bands of the instrument in the IntFfilters attribute as a
+            # nested dictionary
+            self.IntFfilters[instrKey] = {'wl':wlcfilter,'lFl':intFlux}
+
+        return
+
     def blueExcessModel(self, shockPath=shockpath, veilVal=None, Vflux=None):
         """
         Adding the excess emission in the optical and near-UV from accretion shock models to the total emission. The
         models are taken from Laura Ingleby's models.
-        
+
         NOTE1: For this to work, you need to set phot=0 during the calculation of the total model component!
-        
+
         NOTE2: This section is not very generalized, and needs work. - Dan
-        
+
         INPUT
         shockPath: Where the accretion shock model data is located.
         """
-        
+
         print('WARNING: WORKS, NOT GENERALIZED!!!')
-        
+
         # Start by loading in the shock model table:
         if self.name.endswith('pt'):
             shockTable = np.loadtxt(shockPath+self.name[:-2]+'.dat', skiprows=1)
@@ -1943,18 +2135,18 @@ class TTS_Model(object):
             shockTable = np.loadtxt(shockPath+self.name+'.dat', skiprows=1)
             shockLong  = np.loadtxt(shockPath+'shock_'+self.name+'.dat')
             self.data['shockLong'] = {'wl': shockLong[:,0]*1e-4, 'lFl': shockLong[:,1]*shockLong[:,0]}
-        
+
         # Convert everything to the correct units:
         shockTable[:,1] *= shockTable[:,0]      # Make the flux be in erg s-1 cm-2
         shockTable[:,2] *= shockTable[:,0]      # Same units for WTTS component
         shockTable[:,3] *= shockTable[:,0]      # Same units for shock component
         shockTable[:,0] *= 1e-4                 # Wavelength in microns
-        
+
         # Check if any bad (super low) data points in WTTS component, and then remove them:
         lowVals = np.where(shockTable[:,2] < 1e-15)[0]
         if len(lowVals) != 0:
             shockTable = np.delete(shockTable, lowVals, 0)
-        
+
         # Check for NaNs in the data, and if they exist, remove them:
         if np.isnan(np.sum(shockTable[:,2])):
             badVals    = np.where(np.isnan(shockTable[:,2]))
@@ -1962,7 +2154,7 @@ class TTS_Model(object):
         if np.isnan(np.sum(shockTable[:,3])):
             badVals2   = np.where(np.isnan(shockTable[:,3]))
             shockTable = np.delete(shockTable, badVals2, 0)
-        
+
         # Define and add the accretion shock data:
         shockWL        = shockTable[:,0].copy() # I might make cuts later, so want to copy now
         shockFlux      = shockTable[:,1].copy()
@@ -1972,14 +2164,14 @@ class TTS_Model(object):
         if veilVal is not None:
             normVfactor     = Vflux / (1 + veilVal)
             self.data['WTTS']['lFl'] = normalize(self.data['WTTS'], 0.545, normVfactor)
-            
-            
+
+
         # Need to interpolate the model onto the appropriate wavelength grid:
         wlgrid = np.where(np.logical_and(self.data['wl'] <= shockTable[-1,0], self.data['wl'] >= shockTable[0,0]))[0]
         totalInterp    = np.interp(shockTable[:,0], self.data['wl'][wlgrid], self.data['total'][wlgrid])
         # Now, take the wlgrid out of the original arrays:
         self.data['total'][wlgrid] = np.nan
-        
+
         # Add to the total data, and then plop back into the full grid.
         excessTotal        = totalInterp + self.data['WTTS']['lFl'] + shockTable[:,3]
         oldWavelength      = self.data['wl'].copy()     # Save a copy for later
@@ -1988,16 +2180,16 @@ class TTS_Model(object):
         sortInd = np.argsort(self.data['wl'])
         self.data['wl']    = self.data['wl'][sortInd]
         self.data['total'] = self.data['total'][sortInd]
-        
+
         # Now I need to add the shock model for past 1 micron...sigh. Sorry for the weird repetition.
         wlgrid2 = np.where(np.logical_and(self.data['wl'] <= shockLong[-1,0]*1e-4, self.data['wl'] >= shockTable[-1,0]))[0]
         secondInterp   = np.interp(self.data['wl'][wlgrid2], shockLong[:,0]*1e-4, shockLong[:,1]*shockLong[:,0])
         self.data['total'][wlgrid2] += secondInterp
-        
+
         # Doublecheck for the existence of NaNs in your model:
         #if np.isnan(np.sum(self.data['total'])):
         #    print('BLUEEXCESSMODEL: WARNING! There are NaNs in the total component of your model.')
-        
+
         # Now all of the other components are not on the same grid. Let's interpolate all of them:
         for key in self.data.keys():
             if key == 'total' or key == 'wl' or key == 'shock' or key == 'WTTS' or key == 'shockLong':
@@ -2012,23 +2204,23 @@ class TTS_Model(object):
             self.newOWall = np.interp(self.data['wl'], oldWavelength, self.newOWall)
         except AttributeError:
             pass
-        
+
         # Normalize the Kenyon and Hartmann photosphere to the WTTS photosphere for rough consistency:
         normFactor = np.max(self.data['WTTS']['lFl'][-100:])
         photAnchor = self.data['phot'][np.where(self.data['wl'] == shockTable[-1,0])[0]]
         self.data['phot'] *= normFactor / photAnchor
-        
+
         # If we use this model, we need to add the KH photosphere for wavelengths greater than a micron:
         WTTS_ind = np.where(self.data['wl'] > shockTable[-1,0])[0]
-        self.data['total'][WTTS_ind] += self.data['phot'][WTTS_ind] 
-        
+        self.data['total'][WTTS_ind] += self.data['phot'][WTTS_ind]
+
         return
 
 class PTD_Model(TTS_Model):
     """
     Contains all the data and meta-data for a PTD Model from the D'Alessio et al. 2006 models. The input
     will come from fits files that are created via Connor's collate.py.
-    
+
     ATTRIBUTES
     name: Name of the object (e.g., CVSO109, V410Xray-2, ZZ_Tau, etc.).
     jobn: The job number corresponding to this model.
@@ -2046,12 +2238,12 @@ class PTD_Model(TTS_Model):
     temp: The temperature at the outer wall component of the model.
     itemp: The temperature of the inner wall component of the model.
     altinh: Scale heights of extent of the inner wall.
-    wlcut_an: 
-    wlcut_sc: 
+    wlcut_an:
+    wlcut_sc:
     nsilcomp: Number of silicate compounds.
     siltotab: Total silicate abundance.
-    amorf_ol: 
-    amorf_py: 
+    amorf_ol:
+    amorf_py:
     forsteri: Forsterite Fractional abundance.
     enstatit: Enstatite Fractional abundance.
     rin: The inner radius in AU.
@@ -2064,87 +2256,87 @@ class PTD_Model(TTS_Model):
     newOWall: The flux of an outer wall with a higher/lower altinh value.
     iwallH: The inner wall height used by the look() function in plotting.
     wallH: The outer wall height used by the look() function in plotting.
-    
+
     METHODS
     __init__: initializes an instance of the class, and loads in the relevant metadata. No change.
     dataInit: Loads in the relevant data to the object. This differs from that of TTS_Model.
     calc_total: Calculates the "total" (combined) flux based on which components you want, then loads it into
                 the data attribute under the key 'total'. This also differs from TTS_Model.
     """
-    
+
     def dataInit(self, altname=None, jobw=None, fillWall=3, wallpath = '', verbose =1, **searchKwargs):
         """
         Initialize data attributes for this object using nested dictionaries:
         wl is the wavelength (corresponding to all three flux arrays). Phot is the stellar photosphere emission.
         iwall is the flux from the inner wall. Disk is the emission from the angle file. owall is the flux from
         the outer wall. Scatt is the scattered light emission. Also adds self-extinction array if available.
-        
+
         You should either supply the job number of the inner wall file, or the kwargs used to find it via a
-        search. Jobw 
-        
+        search. Jobw
+
         INPUTS
         altname: An alternate name for the inner wall file if necessary.
         jobw: The job number of the wall. Can be a string of 'XXX' or 'XXXX' based on the filename, or just the integer.
         fillWall: How many numbers used in the model file for the inner wall (4 = name_XXXX.fits).
         wallpath: Path to the wall files, otherwise use the default self.dpath
-        **searchkwargs: Kwargs corresponding to parameters in the header that can be used to find the jobw value if 
+        **searchkwargs: Kwargs corresponding to parameters in the header that can be used to find the jobw value if
                         you don't already know it. Otherwise, not necessary for the function call.
-        
-        
+
+
         CURRENT HACKED MODIFICATIONS:
             Added ability to have an inner disk along with an inner wall
-        
+
         """
-        
+
         if jobw == None and len(searchKwargs) == 0:
             raise IOError('DATAINIT: You must enter either a job number or kwargs to match or search for an inner wall.')
-        
+
         if jobw != None:
             # If jobw is an integer, make into a string:
             jobw          = str(jobw).zfill(fillWall)
-            
+
             # The case in which you supplied the job number of the inner wall:
             if altname == None:
                 if wallpath == None:
                     fitsname  = self.dpath + self.name + '_' + jobw + '.fits'
                 if wallpath != None:
                     fitsname  = wallpath + self.name + '_' + jobw + '.fits'
-                    
+
                 HDUwall   = fits.open(fitsname)
             else:
                 if wallpath == None:
                     fitsname  = self.dpath + altname + '_' + jobw + '.fits'
                 if wallpath != None:
                     fitsname  = wallpath + altname + '_' + jobw + '.fits'
-                
+
                 HDUwall   = fits.open(fitsname)
-            
+
             # Make sure the inner wall job you supplied is, in fact, an inner wall.
             if verbose:
                 if 'NOEXT' not in HDUwall[0].header.keys():
                     #raise IOError('DATAINIT: Job you supplied is not an inner wall or needs to be collated again!')
                     print('DATAINIT: Job you supplied is not ONLY an inner wall and may need to be collated again!')
-                
-                
+
+
             # Now, load in the disk data:
             stringNum     = str(self.jobn).zfill(self.fill)
             HDUdata       = fits.open(self.dpath + self.name + '_' + stringNum + '.fits')
             header        = HDUdata[0].header
-            
+
             # Check if it's an old version or a new version:
             if 'EXTAXIS' in header.keys() or 'NOEXT' in header.keys():
                 self.new  = 1
             else:
                 self.new  = 0
-            
+
             # Define the inner wall height.
             self.iwallH   = HDUwall[0].header['ALTINH']
             self.itemp    = HDUwall[0].header['TEMP']
             self.ijobn    = HDUwall[0].header['JOBNUM']
-            
-            
-                
-            
+
+
+
+
             # Depending on old or new version is how we will load in the data. We require the wall be "new":
             if self.new:
                 # Correct for self extinction:
@@ -2152,21 +2344,21 @@ class PTD_Model(TTS_Model):
                     iwallFcorr= HDUwall[0].data[HDUwall[0].header['WALLAXIS'],:]*np.exp(-1*HDUdata[0].data[header['EXTAXIS'],:])
                 except KeyError:
                     print('DATAINIT: WARNING! No extinction correction can be made for job ' + str(self.jobn)+'!')
-                    
+
                     iwallFcorr= HDUwall[0].data[HDUwall[0].header['WALLAXIS'],:]
-                    
+
                 # We will load in the components piecemeal based on the axes present in the header.
                 # First though, we initialize with the wavelength and wall, since they're always present.
-                
+
                 #If there is an inner disk, add that as well.
                 if 'NOEXT' not in HDUwall[0].header.keys():
                     try:
                         idiskFcorr= HDUwall[0].data[HDUwall[0].header['ANGAXIS'],:]*np.exp(-1*HDUdata[0].data[header['EXTAXIS'],:])
                     except KeyError:
                         idiskFcorr= HDUwall[0].data[HDUwall[0].header['ANGAXIS'],:]
-                        
+
                     self.data = {'wl': HDUdata[0].data[header['WLAXIS'],:], 'iwall': iwallFcorr, 'idisk': idiskFcorr}
-                    
+
                     #Add information about the disk
                     self.ialpha      = HDUwall[0].header['ALPHA']
                     self.irdisk      = HDUwall[0].header['RDISK']
@@ -2178,11 +2370,11 @@ class PTD_Model(TTS_Model):
                     self.iamorf_py   = HDUwall[0].header['AMORF_PY']
                     self.iforsteri   = HDUwall[0].header['FORSTERI']
                     self.ienstatit   = HDUwall[0].header['ENSTATIT']
-                    self.irin        = HDUwall[0].header['RIN']                    
-        
+                    self.irin        = HDUwall[0].header['RIN']
+
                 else:
                     self.data = {'wl': HDUdata[0].data[header['WLAXIS'],:], 'iwall': iwallFcorr}
-                
+
                 # Now we can loop through the remaining possibilities:
                 if 'PHOTAXIS' in header.keys():
                     self.data['phot'] = HDUdata[0].data[header['PHOTAXIS'],:]
@@ -2207,7 +2399,7 @@ class PTD_Model(TTS_Model):
             else:
                 self.data = ({'wl': HDUdata[0].data[:,0], 'phot': HDUdata[0].data[:,1], 'owall': HDUdata[0].data[:,2],
                               'disk': HDUdata[0].data[:,3], 'iwall': HDUwall[0].data[HDUwall[0].header['WALLAXIS'],:]})
-        
+
         else:
             # When doing the searchJobs() call, use **searchKwargs to pass that as the keyword arguments to searchJobs!
             if altname == None:
@@ -2224,35 +2416,35 @@ class PTD_Model(TTS_Model):
                 else:
                     fitsname = self.dpath + altname + '_' + match[0] + '.fits'
                 HDUwall  = fits.open(fitsname)
-                
+
                 # Make sure the inner wall job you supplied is, in fact, an inner wall.
                 if 'NOEXT' not in HDUwall[0].header.keys():
                     raise IOError('DATAINIT: Job found is not an inner wall or needs to be collated again!')
-            
+
                 # Now, load in the disk data:
                 stringNum    = str(self.jobn).zfill(self.fill)
                 HDUdata      = fits.open(self.dpath + self.name + '_' + stringNum + '.fits')
                 header       = HDUdata[0].header
-            
+
                 # Check if it's an old version or a new version:
                 if 'EXTAXIS' in header.keys() or 'NOEXT' in header.keys():
                     self.new = 1
                 else:
                     self.new = 0
-                
+
                 # Define the inner wall height:
                 self.iwallH  = HDUwall[0].header['ALTINH']
                 self.itemp   = HDUwall[0].header['TEMP']
-                
+
                 # Depending on old or new version is how we will load in the data. We require the wall be "new":
                 if self.new:
                     # Correct for self extinction:
                     iwallFcorr = HDUwall[0].data[HDUwall[0].header['WALLAXIS'],:]*np.exp(-1*HDUdata[0].data[header['EXTAXIS'],:])
-                    
+
                     # We will load in the components piecemeal based on the axes present in the header.
                     # First though, we initialize with the wavelength and wall, since they're always present:
                     self.data  = {'wl': HDUdata[0].data[header['WLAXIS'],:], 'iwall': iwallFcorr}
-                
+
                     # Now we can loop through the remaining possibilities:
                     if 'PHOTAXIS' in header.keys():
                         self.data['phot'] = HDUdata[0].data[header['PHOTAXIS'],:]
@@ -2279,13 +2471,13 @@ class PTD_Model(TTS_Model):
                                   'disk': HDUdata[0].data[:,3], 'iwall': HDUwall[0].data[HDUwall[0].header['WALLAXIS'],:]})
         HDUdata.close()
         return
-    
+
     @keyErrHandle
     def calc_total(self, phot=1, iwall=1, idisk=1, owall=1, odisk = 1, dust=0, verbose=1, dust_fill=3, altInner=None, altOuter=None, save=0, OTDpath=None):
         """
         Calculates the total flux for our object (likely to be used for plotting and/or analysis). Once calculated, it
         will be added to the data attribute for this object. If already calculated, will overwrite.
-        
+
         INPUTS
         phot: BOOLEAN -- if 1 (True), will add photosphere component to the combined model.
         wall: BOOLEAN -- if 1 (True), will add inner wall component to the combined model.
@@ -2299,7 +2491,7 @@ class PTD_Model(TTS_Model):
         save: BOOLEAN -- if 1 (True), will print out the components to a .dat file.
         OTDpath: STRING -- optional path to OTD files
         """
-        
+
         # Add the components to the total flux, checking each component along the way:
         totFlux         = np.zeros(len(self.data['wl']), dtype=float)
         componentNumber = 1
@@ -2324,19 +2516,19 @@ class PTD_Model(TTS_Model):
                 except AttributeError:
                     pass
             componentNumber += 1
-            
+
         if idisk:
             if verbose:
                 print('CALC_TOTAL: Adding inner disk component to the total flux.')
             totFlux     = totFlux + self.data['idisk']
             componentNumber += 1
-            
+
         if odisk:
             if verbose:
                 print('CALC_TOTAL: Adding outer disk component to the total flux.')
             totFlux     = totFlux + self.data['odisk']
             componentNumber += 1
-            
+
         if owall:
             if verbose:
                 print('CALC_TOTAL: Adding outer wall component to the total flux.')
@@ -2363,11 +2555,11 @@ class PTD_Model(TTS_Model):
                 print('CALC_TOTAL: Adding optically thin dust component to total flux.')
             if self.new:
                 self.data['dust'] = dustHDU[0].data[1,:]
-            else:    
+            else:
                 self.data['dust'] = dustHDU[0].data[:,1]
             totFlux     = totFlux + self.data['dust']
             componentNumber += 1
-        
+
         # If scattered emission is in the dictionary, add it:
         if 'scatt' in self.data.keys():
             scatt       = 1
@@ -2375,14 +2567,14 @@ class PTD_Model(TTS_Model):
                 print('CALC_TOTAL: Adding scattered light component to the total flux.')
             totFlux     = totFlux + self.data['scatt']
             componentNumber += 1
-        
+
         # Add the total flux array to the data dictionary attribute:
         if verbose:
             print('CALC_TOTAL: Total flux calculated. Adding to the data structure.')
         self.data['total'] = totFlux
         componentNumber += 1
-        
-        
+
+
         # If save, create an output file with these components printed out:
         if save:
             outputTable = np.zeros([len(totFlux), componentNumber])
@@ -2416,12 +2608,12 @@ class PTD_Model(TTS_Model):
                 headerStr += 'Scattered Light, '
                 outputTable[:, colNum] = self.data['scatt']
                 colNum += 1
-            
+
             # Trim the header and save:
             headerStr  = headerStr[0:-2]
             filestring = '%s%s_%s.dat' % (self.dpath, self.name, str(self.jobn).zfill(self.fill))
             np.savetxt(filestring, outputTable, fmt='%.3e', delimiter=', ', header=headerStr, comments='#')
-        
+
         return
 
 class TTS_Obs(object):
@@ -2429,24 +2621,26 @@ class TTS_Obs(object):
     Contains all the observational data for a given target system. Allows you to create a pickle with the data, so it can
     be reloaded in at a future time without the need to re-initialize the object. However, to open up the pickle, you will
     need to have this source code where Python can access it.
-    
+
     ATTRIBUTES
     name: The name of the target whose observations this represents.
     spectra: The spectra measurements for said target.
     photometry: The photometry measurements for said target.
     ulim: Which (if any) photometry points are upper limits.
-    
+    phot_dens: Density (per wavelength) of photometric points.
+    spec_dens: Density (per wavelength) of points in each spectrum.
+
     METHODS
     __init__: Initializes an instance of this class. Creates initial attributes (name and empty data dictionaries).
     add_spectra: Adds an entry (or replaces an entry) in the spectra attribute dictionary.
     add_photometry: Adds an entry (or replaces an entry) in the photometry attribute dictionary.
     SPPickle: Saves the object as a pickle to be reloaded later. This will not work if you've reloaded the module before saving.
     """
-    
+
     def __init__(self, name):
         """
         Initializes instances of the class and loads in data to the proper attributes.
-        
+
         INPUTS
         name: The name of the target for which the data represents.
         """
@@ -2455,18 +2649,20 @@ class TTS_Obs(object):
         self.spectra    = {}
         self.photometry = {}
         self.ulim       = []
-        
+        self.spec_dens = {}
+        self.phot_dens = 0.0
+
     def add_spectra(self, scope, wlarr, fluxarr, errors=None):
         """
         Adds an entry to the spectra attribute.
-        
+
         INPUTS
         scope: The telescope or instrument that the spectrum was taken with.
         wlarr: The wavelenth array of the data. Should be in microns. Note: this is not checked.
         fluxarr: The flux array of the data. Should be in erg s-1 cm-2. Note: this is not checked.
         errors: (optional) The array of flux errors. Should be in erg s-1 cm-2. If None (default), will not add.
         """
-        
+
         # Check if the telescope data already exists in the data file:
         if scope in self.spectra.keys():
             print('ADD_SPECTRA: Warning! This will overwrite current entry!')
@@ -2493,19 +2689,57 @@ class TTS_Obs(object):
             else:
                 self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'err': errors}
         return
-    
+
     def add_photometry(self, scope, wlarr, fluxarr, errors=None, ulim=0):
         """
         Adds an entry to the photometry attribute.
-        
+
         INPUTS
         scope: The telescope or instrument that the photometry was taken with.
         wlarr: The wavelength array of the data. Can also just be one value if an individual point. Should be in microns. Note: this is not checked.
         fluxarr: The flux array corresponding to the data. Should be in erg s-1 cm-2. Note: this is not checked.
         errors: (optional) The array of flux errors. Should be in erg s-1 cm-2. If None (default), will not add.
         ulim: BOOLEAN -- whether or not this photometric data is or is not an upper limit.
+
+        NOTE:
+        If synthetic fluxes want to be used when computing the chi square, these keywords
+        need to be used when adding photometry:
+        'CVSO', 'VISTA', 'IRAC', 'MIPS', 'CANA', 'PACS', 'WISE', 'SDSS', '2MASS'
+
+        New instruments can be added with time. If any instrument is added,
+        the instrKeylist should be updated.
         """
-        
+        # Check if scope is a string, and make it upper case
+        # so that it matches filters keywords
+        if type(scope) == str:
+            scope.upper()
+        else:
+            raise IOError('scope should be a string.')
+
+        # Check if instrument is in list of instruments with available synthetic fluxes
+        instrKeylist = ['CVSO', 'VISTA', 'IRAC','MIPS', 'CANA', 'PACS', 'WISE', 'SDSS', '2MASS']
+        if scope not in instrKeylist:
+            print('Synthetic fluxes for instrument '+scope+' cannot be currently computed.')
+            print('Available instruments are: '+', '.join(instrKeylist))
+
+        # Check that the wavelengths and fluxes entered make sense
+        try: # If values entered are numeric, make them an array
+            wlarr[0]
+        except:
+            try: # In case entered fluxes and wavelengths are of strange types
+                wlarr = np.array([wlarr])
+                fluxarr = np.array([fluxarr])
+            except:
+                raise IOError('ADD_PHOTOMETRY: The fluxes and wavelengths should be a list, an array, or individual numeric values.')
+        if type(wlarr) == list: # If values entered are a list, make them an array
+            wlarr = np.array(wlarr)
+        if type(fluxarr) == list:
+            fluxarr = np.array(fluxarr)
+        if type(wlarr) == str or type(fluxarr) == str: # Check if they are strings
+            raise IOError('ADD_PHOTOMETRY: The flux and wavelength should NOT be strings')
+        if len(wlarr) != len(fluxarr): # Check if they have the same length
+            raise IOError('ADD_PHOTOMETRY: The flux and wavelength should have the same number of elements')
+
         # Check if the telescope data already exists in the data file:
         if scope in self.photometry.keys():
             print('ADD_PHOTOMETRY: Warning! This will overwrite current entry!')
@@ -2535,24 +2769,26 @@ class TTS_Obs(object):
                 self.photometry[scope]  = {'wl': wlarr, 'lFl': fluxarr, 'err': errors}
             if ulim == 1:
                 self.ulim.append(scope)                                     # If upper limit, append metadata to ulim attribute list.
+        # We reset the attribute phot_dens, since with new photometry it should be recalculated
+        self.phot_dens = 0.0
         return
-    
+
     def SPPickle(self, picklepath, clob = False, fill = 3):
         """
         Saves the object as a pickle. Damn it Jim, I'm a doctor not a pickle farmer!
-        
+
         WARNING: If you reload the module BEFORE you save the observations as a pickle, this will NOT work! I'm not
         sure how to go about fixing this issue, so just be aware of this.
-        
+
         INPUTS
         picklepath: The path where you will save the pickle. I recommend datapath for simplicity.
         clob: boolean, if set to True, will clobber the old pickle
         fill: How many numbers used in the model files (4 = name_XXXX.fits).
-        
+
         OUTPUT:
         A pickle file of the name [self.name]_obs.pkl in the directory provided in picklepath.
         """
-        
+
         # Check whether or not the pickle already exists:
         pathlist        = filelist(picklepath)
         outname         = self.name + '_obs.pkl'
@@ -2577,15 +2813,15 @@ class Red_Obs(TTS_Obs):
     A similar class to TTS_Obs, except meant to be utilized for observations that have not yet been
     dereddened. Once dereddened, the pickle will be saved as a TTS_Obs object. If saved prior to
     dereddening, the pickle will be associated with Red_Obs instead. I recommend keeping both.
-    
+
     """
-    
+
     def dered(self, Av, Av_unc, law, picklepath, flux=1, lpath=edgepath, err_prop=1, UV = 0, clob = False):
         """
         Deredden the spectra/photometry present in the object, and then convert to TTS_Obs structure.
         This function is adapted from the IDL procedure 'dered_calc.pro' (written by Melissa McClure).
         This requires the spectral fluxes to be units of erg s-1 cm-2 cm-1.
-        
+
         INPUTS
         Av: The Av extinction value.
         Av_unc: The uncertainty in the Av value provided.
@@ -2597,29 +2833,29 @@ class Red_Obs(TTS_Obs):
         lpath: Where the 'ext_laws.pkl' file is located. I suggest hard coding it as 'edgepath'.
         err_prop: BOOLEAN -- if True (1), will propagate the uncertainty of your photometry with the
                   uncertainty in your Av. Otherwise, it will not.
-        UV: Uses dereddening law from Whittet et al. 2004 based on the extinction towards HD 29647 
+        UV: Uses dereddening law from Whittet et al. 2004 based on the extinction towards HD 29647
             for wavelengths between 0.125-9.33 microns.
             NOTE: This is ONLY useful for stars extincted by diffuse media, with RV = 3.1 (MATHIS LAW)
         clob: boolean, if set to True, will clobber the old pickle
-        
+
         OUTPUT
         There will be a pickle file called '[self.name]_obs.pkl' in the path provided in picklepath. If
         there is already an obs pickle file there, it will add an integer to the name to differentiate
         between the two files, rather than overwriting.
         """
-        
+
         # Read in the dereddening laws pickle. The default is whereever you keep EDGE.py, but you can move it.
         extPickle = open(lpath + 'ext_laws.pkl', 'rb')
         extLaws   = cPickle.load(extPickle, encoding = 'latin1')
         extPickle.close()
-        
+
         # Figure out which law we will be using based on the user input and Av:
         if law == 'mkm09_rv5':
             print('Using the McClure (2009) ext. laws for Av >3\nwith the Mathis (1990) Rv=5.0 \
                    law for Av < 3\n(appropriate for molecular clouds like Ophiuchus).')
             AjoAks = 2.5341
             AvoAj  = 3.06
-            
+
             if Av >= 8.0:                                       # high Av range
                 wave_law = extLaws['mkm_high']['wl']
                 ext_law  = extLaws['mkm_high']['ext'] / AjoAks
@@ -2636,7 +2872,7 @@ class Red_Obs(TTS_Obs):
                    law for Av < 3\n(appropriate for molecular clouds like Taurus).')
             AjoAks = 2.5341
             AvoAj  = 3.55 # for Rv=3.1 **WARNING** this is still the Rv=5 curve until 2nd step below.
-            
+
             if Av >= 8.0:                                       # high Av range
                 wave_law = extLaws['mkm_high']['wl']
                 ext_law  = extLaws['mkm_high']['ext'] / AjoAks
@@ -2648,7 +2884,7 @@ class Red_Obs(TTS_Obs):
                 ext_law  = extLaws['mathis_rv3']['ext']
             else:
                 raise ValueError('DERED: Specified Av is not within acceptable ranges.')
-            
+
             # Fix to the wave and ext. law:
             wave_jm  = extLaws['mathis_rv3']['wl']
             ext_jm   = extLaws['mathis_rv3']['ext']
@@ -2656,7 +2892,7 @@ class Red_Obs(TTS_Obs):
             jindjm   = np.where(wave_jm < 1.25)[0]
             wave_law = np.append(wave_jm[jindjm], wave_law[jindmkm])
             ext_law  = np.append(ext_jm[jindjm], ext_law[jindmkm])
-            
+
         elif law == 'mathis90_rv3.1':
             print('Using the Mathis (1990) Rv=3.1 law\n(appropriate for diffuse ISM).')
             AjoAks   = 2.5341
@@ -2665,39 +2901,39 @@ class Red_Obs(TTS_Obs):
             ext_law  = extLaws['mathis_rv3']['ext']
         else:
             raise ValueError('DERED: Specified extinction law string is not recognized.')
-        
+
         A_object        = Av
         A_object_string = str(round(A_object,2))
-        
+
         # Open up a new TTS_Obs object to take the dereddened values:
         deredObs        = TTS_Obs(self.name)
-        
+
         # Loop over the provided spectra (and possible errors), and compute the dereddened fluxes
         # and uncertainties where available. The possible uncertainties calculations are both the
         # SSC/SMART's "spectral uncertainty" and the "nod-differenced uncertainty".
 
         for specKey in self.spectra.keys():
             extInterpolated = np.interp(self.spectra[specKey]['wl'], wave_law, ext_law) # Interpolated ext.
-            
+
             #If the UV flag is on, replace the extinction law between 0.125 - .33 microns with a different law
             if UV == True:
-                
+
                 #Ensure that you are using the Rv = 3.1 Mathis law
                 if law != 'mathis90_rv3.1' and law != 'mkm09_rv3':
                     raise ValueError('UV dereddening mode for use only with the low extinction laws (mathis90_rv3.1 and mkm09_rv3)')
-                
+
                 #Covert wavelength to 1/microns
                 x = self.spectra[specKey]['wl'] ** (-1)
-                
+
                 #Define the valid range (3-8 (micron)^-1)
                 UVrange = np.where((x > 3) & (x < 8))
-                
+
                 # If the range does contain some points in the right wavelength range, calculate the new extinction law there
                 if len(UVrange[0]) != 0:
-                
+
                     #Because this function only works for diffuse regions, forced to use an Rv of 3.1 (common interstellar value)
                     Rv = 3.1
-                    
+
                     # Define the extinction parameters (HD 29647, Table 1, Whittet et al. 2004)
                     # Functional form of the extinction from Fitzpatrick + Massa (1988, 1990)
                     c1 = 0.005
@@ -2706,75 +2942,75 @@ class Red_Obs(TTS_Obs):
                     c4 = 0.717
                     x0 = 4.650
                     gamma = 1.578
-                    
+
                     #Calculate the extinction at each wavelength in terms of Alambda/Av
                     #Uses parametrization set up by Fitzpatrick + Massa (1988, 1990)
-                    
+
                     #Drude function at x0 with width gamma
-                    D = (x**2) / ((x**2 - x0**2)**2 + gamma**2*x**2) 
+                    D = (x**2) / ((x**2 - x0**2)**2 + gamma**2*x**2)
                     #Polynomial representing far UV rise
                     F = 0.5392*(x-5.9)**2 + 0.0564*(x-5.9)**3
                     F[np.where(x<5.9)] = 0
-                    
+
                     #Calculate A_UV and truncate outside the valid range (3-8 (micron)^-1)
                     ext_UV_all = 1 + (c1 + c2*x + c3*D + c4*F)/Rv
-                    
+
                     ext_UV = ext_UV_all[UVrange[0]]
-                    
+
                     #Convert from Alam/Av to Alam/Aj to be consitant with extInterpolated
                     ext_UV_j = ext_UV * AvoAj
-                    
+
                     #Replace the old values of extinction with the new ones
                     extInterpolated[UVrange[0]] = ext_UV_j
-                    
+
                 else:
                     pass
-            
-            
+
+
             A_lambda        = extInterpolated * (A_object / AvoAj)
             spec_flux       = np.float64(self.spectra[specKey]['lFl']*10.0**(0.4*A_lambda))
-            
-            
-            
+
+
+
             if 'err' in self.spectra[specKey].keys():
                 spec_unc    = np.float64(spec_flux*np.sqrt(((self.spectra[specKey]['err']/self.spectra[specKey]['lFl'])\
                                          **2.) + (((0.4*math.log(10)*extInterpolated*Av_unc)/(AvoAj))**2.)) )
             else:
                 spec_unc    = None
-                
+
             # Correct units to flux:
             #Apparently I don't need this anymore?
 #            spec_flux       = spec_flux * self.spectra[specKey]['wl'] * 1e-4
-            
+
 #            if spec_unc != None:
 #                spec_unc    = spec_unc  * self.spectra[specKey]['wl'] * 1e-4
-            
+
             deredObs.add_spectra(specKey, self.spectra[specKey]['wl'], spec_flux, errors=spec_unc)
-            
-            
+
+
         # Spectra are done, onwards to photometry:
         for photKey in self.photometry.keys():
             extInterpolated = np.interp(self.photometry[photKey]['wl'], wave_law, ext_law)
-            
+
             #If the UV flag is on, replace the extinction law between 0.125 - .33 microns with a different law
             if UV == True:
-                
+
                 #Ensure that you are using the Rv = 3.1 Mathis law
                 if law != 'mathis90_rv3.1' and law != 'mkm09_rv3':
                     raise ValueError('UV dereddening mode for use only with the low extinction laws (mathis90_rv3.1 and mkm09_rv3)')
-                
+
                 #Covert wavelength to 1/microns
                 x = self.photometry[photKey]['wl'] ** (-1)
-                
+
                 #Define the valid range (3-8 (micron)^-1)
                 UVrange = np.where((x > 3) & (x < 8))
-                
+
                 # If the range does contain some points in the right wavelength range, calculate the new extinction law there
                 if len(UVrange[0]) != 0:
-                
+
                     #Because this function only works for diffuse regions, forced to use an Rv of 3.1 (common interstellar value)
                     Rv = 3.1
-                    
+
                     # Define the extinction parameters (HD 29647, Table 1, Whittet et al. 2004)
                     # Functional form of the extinction from Fitzpatrick + Massa (1988, 1990)
                     c1 = 0.005
@@ -2783,31 +3019,31 @@ class Red_Obs(TTS_Obs):
                     c4 = 0.717
                     x0 = 4.650
                     gamma = 1.578
-                    
+
                     #Calculate the extinction at each wavelength in terms of Alambda/Av
                     #Uses parametrization set up by Fitzpatrick + Massa (1988, 1990)
-                    
+
                     #Drude function at x0 with width gamma
-                    D = (x**2) / ((x**2 - x0**2)**2 + gamma**2*x**2) 
+                    D = (x**2) / ((x**2 - x0**2)**2 + gamma**2*x**2)
                     #Polynomial representing far UV rise
                     F = 0.5392*(x-5.9)**2 + 0.0564*(x-5.9)**3
                     F[np.where(x<5.9)] = 0
-                    
+
                     #Calculate A_UV and truncate outside the valid range (3-8 (micron)^-1)
                     ext_UV_all = 1 + (c1 + c2*x + c3*D + c4*F)/Rv
-                    
+
                     ext_UV = ext_UV_all[UVrange[0]]
-                    
+
                     #Convert from Alam/Av to Alam/Aj to be consitant with extInterpolated
                     ext_UV_j = ext_UV * AvoAj
-                    
+
                     #Replace the old values of extinction with the new ones
                     extInterpolated[UVrange[0]] = ext_UV_j
-                    
-                    
+
+
                 else:
                     pass
-            
+
             A_lambda        = extInterpolated * (A_object / AvoAj)
             if flux:
                 photcorr    = self.photometry[photKey]['lFl'] / (self.photometry[photKey]['wl']*1e-4)
@@ -2837,28 +3073,28 @@ class Red_Obs(TTS_Obs):
             except TypeError:
                 pass
             deredObs.add_photometry(photKey, self.photometry[photKey]['wl'], phot_dered, errors=phot_err, ulim=ulimVal)
-            
 
-            
+
+
         # Now that the new TTS_Obs object has been created and filled in, we must save it:
         deredObs.SPPickle(picklepath=picklepath, clob = clob)
-        
+
         return
-    
-    
+
+
     def SPPickle(self, picklepath, clob = False, fill = 3):
         """
         The new version of SPPickle, different so you can differentiate between red and dered pickles.
-        
+
         INPUT
         picklepath: The path where the new pickle file will be located.
         clob: boolean, if set to True, will clobber the old pickle
         fill: How many numbers used in the model files (4 = name_XXXX.fits).
-        
+
         OUTPUT
         A new pickle file in picklepath, of the name [self.name]_red.pkl
         """
-        
+
         # Check whether or not the pickle already exists:
         pathlist        = filelist(picklepath)
         outname         = self.name + '_red.pkl'
@@ -2877,4 +3113,3 @@ class Red_Obs(TTS_Obs):
         cPickle.dump(self, f)
         f.close()
         return
-        
