@@ -33,7 +33,6 @@ AUTHOR:
 specpath   = '/Users/Connor/Desktop/Research/diad/EDGE/DEMO/data/'
 photpath   = '/Users/Connor/Desktop/Research/diad/EDGE/DEMO/data/'
 picklepath = '/Users/Connor/Desktop/Research/diad/EDGE/DEMO/data/'
-edgepath   = '/Users/Connor/Desktop/Research/diad/EDGE/'
 
 #Build a Red_Obs object to store the data
 obj = 'imlup'
@@ -108,5 +107,5 @@ Av_unc = 0.00
 law = 'mathis90_rv3.1'
 
 #De-redden the data
-red.dered(Av, Av_unc, law, picklepath, err_prop=1, lpath = edgepath, clob = True)
+red.dered(Av, Av_unc, law, picklepath, err_prop=1, clob = True)
 

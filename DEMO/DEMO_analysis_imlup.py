@@ -49,7 +49,7 @@ save = False
 jobs = np.arange(19)+1
 
 #Define list of wall heights to try
-altinh = [1,2,3,4,5,6,7,8]
+altinh = [1,2,3,4,5]
 
 #Load in the data pickle
 targ = edge.loadPickle(obj, picklepath = picklepath)
@@ -84,8 +84,12 @@ for job in jobs:
         for alt in altinh:
             #Calculate the total emission from all the components of the disk + star
             model.calc_total(altinh = alt, verbose = 0)
+            
+            #If you are running your code with the filter deconvolution, uncomment this
+            #model.calc_filters(obj = targ)
+            
             #Append the chi2 vlaue and the height of the wall
-            chiwall.append([alt, edge.model_rchi2(targ, model])
+            chiwall.append([alt, edge.model_rchi2(targ, model)])
         
         #Convert the list into an array
         chiwall = np.array(chiwall)

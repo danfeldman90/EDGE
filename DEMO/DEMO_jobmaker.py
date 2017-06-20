@@ -48,6 +48,9 @@ MODIFICATION HISTORY
 #Also must be the location of the sample job file
 gridpath = '/Users/Connor/Desktop/Research/diad/EDGE/DEMO/models/'
 
+#Where you will be running the jobs on the cluster
+clusterpath = '/projectnb/bu-disks/connorr/test/'
+
 #Tag that you can add to make the parameter file identifiable for a given run
 #Can leave it blank if you don't care. 
 paramfiletag = 'DEMO_imlup_'
@@ -152,4 +155,6 @@ for i in range(len(table)):
     fill      = fill,\
     iwall     = iwall,\
     labelend  = label)
-    
+
+#Make a run all file for the jobs you just created
+edge.create_runall(jobnumstart, jobnumstart+len(table)-1, clusterpath, optthin = False, outpath = gridpath, fill = fill)

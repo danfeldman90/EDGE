@@ -28,7 +28,7 @@ plt.rc('figure', autolayout=True)
 #-----------------------------------------------------PATHS------------------------------------------------------
 # Folders where model output data and observational data can be found:
 edgepath        = os.path.dirname(os.path.realpath(__file__))+'/'
-filterspath     = edgepath+'Filters/'
+commonpath     = edgepath+'COMMON/'
 datapath        = '/Users/Connor/Desktop/Research/iceline/data/'
 figurepath      = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/Models/Full_CVSO_Grid/CVSO58_sil/'
 shockpath       = '/Users/danfeldman/Orion_Research/Orion_Research/CVSO_4Objs/ob1bspectra/'
@@ -1184,6 +1184,63 @@ def job_optthin_create(jobn, path, fill=3, **kwargs):
 
     return
 
+def create_runall(jobstart, jobend, clusterpath, optthin = False, outpath = '', commonpath = commonpath, fill = 3):
+    '''
+    create_runall()
+    
+    INPUTS:
+        jobstart: [int] First job file in grid
+        jobsend: [int] Last job file in grid
+    
+    OPTIONAL INPUTS:
+        optthin: [Boolean] Set to True for optically thin dust models.
+        outpath: [String] Location of where the runall script should be sent. Default is current directory.
+        edgepath: [String] Path to where the runall_template file is located. Default is the edge director
+    '''
+    #Now write the runall script
+    runallfile = open(commonpath+'runall_template', 'r')
+    fulltext = runallfile.readlines()     # All text in a list of strings
+    runallfile.close()
+    
+    #Turn it into one large string
+    text = ''.join(fulltext)
+    
+    #Replace the path
+    start = text.find('cd ')+len('cd ')
+    end = start +len(text[start:].split('\n')[0])
+    text = text[:start] + clusterpath + text[end:]
+    
+    #Replace the jobstart
+    start = text.find('#qsub -t ')+len('#qsub -t ')
+    end = start +len(text[start:].split('-')[0])
+    text = text[:start] + str(int(jobstart)) + text[end:]
+    
+    #Replace the job end
+    start = text.find('#qsub -t '+str(int(jobstart))+'-')+len('#qsub -t '+str(int(jobstart))+'-')
+    end = start +len(text[start:].split(' runall.csh')[0])
+    text = text[:start] + str(int(jobend)) + text[end:]
+    
+    #Replace fill
+    start = text.find('job%0')+len('job%0')
+    end = start +len(text[start:].split('d" $SGE_TASK_ID')[0])
+    text = text[:start] + str(int(fill)) + text[end:]
+    
+    #If the job is optically thin, replace job
+    if optthin:
+        start = text.find('job%0')
+        end = start+len('job%0')
+        text = text[:start]+'job_optthin%0'+text[end:]
+    
+    #Turn the text back into something that can be written out
+    outtext = [s + '\n' for s in text.split('\n')]
+    
+    #Write out the runall file
+    newrunall = open(outpath+'runall.csh', 'w')
+    newrunall.writelines(outtext)
+    newrunall.close()
+    
+
+
 def model_rchi2(obj, model, obsNeglect=[], wp=0.0, non_reduce=1, verbose = 1):
     """
     Calculates a reduced chi-squared goodness of fit.
@@ -1204,7 +1261,7 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.0, non_reduce=1, verbose = 1):
     NOTE:
     If synthetic fluxes want to be used when computing the chi square, these keywords
     need to be used when adding photometry:
-    'CVSO', 'VISTA', 'IRAC', 'MIPS', 'CANA', 'PACS', 'WISE', 'SDSS', '2MASS'
+    'CVSO', 'IRAC', 'MIPS', 'CANA', 'PACS', 'WISE', '2MASS'
 
     New instruments can be added with time. If any instrument is added,
     the instrKeylist should be updated in calc_filters and in add_photometry.
@@ -1213,17 +1270,22 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.0, non_reduce=1, verbose = 1):
     #First check to see if there is a total component
     if 'total' not in model.data:
         if verbose:
-            print("Model "+model.jobn+" does not have 'total' values, returning...")
+            print("MODEL_RCHI2: Model "+model.jobn+" does not have 'total' values, returning...")
         return -1
 
     # We compute the chi2 for the photometry and the spectra separately.
     # Start with photometry:
     chiSF = []
+    chiP = []
     wavelength = []
     flux = []
     errs = []
     max_lambda = 0.0
     min_lambda = 1e10 # A big number
+    
+    #If difference in wavelengths of instruments in photometry and calc_filters are greater than this, code will raise an error
+    threshold = 0.1 
+    
     for obsKey in obj.photometry.keys():
         if obsKey in obsNeglect:
             # In order to be safe, we reset phot_dens to 0 when we discard some photometry
@@ -1239,11 +1301,15 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.0, non_reduce=1, verbose = 1):
             if min(obj.photometry[obsKey]['wl']) < min_lambda:
                 min_lambda = min(obj.photometry[obsKey]['wl'])
         # For the instruments with synthetic fluxes
-        if obsKey in model.filters.keys():
+        if obsKey in model.synthFlux.keys():
             for ind,wl in enumerate(obj.photometry[obsKey]['wl']):
-                l = np.argmin(abs(model.IntFfilters[obsKeys]['wl']-wl)) # We find the band
+                l = np.argmin(abs(model.synthFlux[obsKey]['wl']-wl)) # We find the band
+                
+                #Raise an error if the wavelengths are larger than the threshold given above.
+                if abs((model.synthFlux[obsKey]['wl'][l] - wl)/wl) > threshold:
+                    raise ValueError('MODEL_RCHI2: Error with wavelength for '+obsKey+'. Check wavelength for photometry')
                 obs_flux = obj.photometry[obsKey]['lFl'][ind]
-                model_flux = model.IntFfilters[obsKey]['lFl'][l]
+                model_flux = model.synthFlux[obsKey]['lFl'][l]
                 try:
                     obs_err = obj.photometry[obsKey]['err'][ind]
                     chiSF.append((obs_flux - model_flux)/ obs_err)
@@ -1273,36 +1339,41 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.0, non_reduce=1, verbose = 1):
     rchi_sqSF   = np.sum(chiSF*chiSF)
 
     # For the instruments that do not have synthetic fluxes
-    wavelength = np.concatenate(wavelength)
-    flux = np.concatenate(flux)
-    errs = np.concatenate(errs)
-
-    # Check and remove NaNs from the data, if any:
-    if np.isnan(np.sum(flux)):
-        badVals    = np.where(np.isnan(flux))   # Where the NaNs are located
-        flux       = np.delete(flux, badVals)
-        wavelength = np.delete(wavelength, badVals)
-        errs       = np.delete(errs, badVals)
-    # If there are NaNs in the actual model, remove them:
-    if np.isnan(np.sum(model.data['total'])):
-        badValsMod = np.where(np.isnan(model.data['total']))
-        for key in model.data.keys():
-            model.data[key] = np.delete(model.data[key], badValsMod)
-
-    # Sort the arrays:
-    waveindex      = np.argsort(wavelength)     # Indices that sort the array
-    wavelength     = wavelength[waveindex]
-    flux           = flux[waveindex]
-    errs           = errs[waveindex]
-
-    # Interpolate the model so the observations and model are on the same grid:
-    modelFlux      = np.interp(wavelength, model.data['wl'], model.data['total'])
-
-    # Calculate the chi for the instruments without synthetic fluxes
-    chiP = (flux - modelFlux) / errs
-    # The total chi2 for the photometry will be
-    rchi_sqP   = np.sum(chiP*chiP) + rchi_sqSF
-
+    if len(wavelength) > 0:
+        wavelength = np.concatenate(wavelength)
+        flux = np.concatenate(flux)
+        errs = np.concatenate(errs)
+    
+        # Check and remove NaNs from the data, if any:
+        if np.isnan(np.sum(flux)):
+            badVals    = np.where(np.isnan(flux))   # Where the NaNs are located
+            flux       = np.delete(flux, badVals)
+            wavelength = np.delete(wavelength, badVals)
+            errs       = np.delete(errs, badVals)
+        # If there are NaNs in the actual model, remove them:
+        if np.isnan(np.sum(model.data['total'])):
+            badValsMod = np.where(np.isnan(model.data['total']))
+            for key in model.data.keys():
+                model.data[key] = np.delete(model.data[key], badValsMod)
+    
+        # Sort the arrays:
+        waveindex      = np.argsort(wavelength)     # Indices that sort the array
+        wavelength     = wavelength[waveindex]
+        flux           = flux[waveindex]
+        errs           = errs[waveindex]
+    
+        # Interpolate the model so the observations and model are on the same grid:
+        modelFlux      = np.interp(wavelength, model.data['wl'], model.data['total'])
+    
+        # Calculate the chi for the instruments without synthetic fluxes
+        chiP = (flux - modelFlux) / errs
+        # The total chi2 for the photometry will be
+        rchi_sqP   = np.sum(chiP*chiP) + rchi_sqSF
+    
+    #If no instruments with synthetic fluxes then chi2 is just chi2 of the synthetic fluxes
+    else:
+        rchi_sqP   = rchi_sqSF
+    
     # "Density" of photometric points, used later for the spectra weighting calculation
     if obj.phot_dens == 0.0:
     # We save it as an attribute so that it doesn't need to be calculated again
@@ -1371,7 +1442,7 @@ def model_rchi2(obj, model, obsNeglect=[], wp=0.0, non_reduce=1, verbose = 1):
         rchi_sqS = np.sum(chiS*chiS)
 
         # If weight of spectra was provided, use it now
-        if wp != 0.0
+        if wp != 0.0:
             ws = 1.0 - wp
             rchi_sqS = rchi_sqS * np.sqrt(ws)
             rchi_sqP = rchi_sqP * np.sqrt(wp)
@@ -1479,7 +1550,7 @@ def BIC_Calc(obs, minChi, degFree=6, weight=None, ignoreKeys=[]):
 
     return bic
 
-def star_param(sptype, mag, Av, dist, params, picklepath=edgepath, jnotv=0):
+def star_param(sptype, mag, Av, dist, params, picklepath=commonpath, jnotv=0):
     """
     Calculates the effective temperature and luminosity of a T-Tauri star. Uses either values based on
     Kenyon and Hartmann (1995), or Pecault and Mamajek (2013). This function is based on code written
@@ -1742,7 +1813,7 @@ class TTS_Model(object):
     newIWall: The flux of an inner wall with a higher/lower altinh value.
     wallH: The inner wall height used by the look() function in plotting.
     filters: Filters used to calculate synthetic fluxes.
-    IntFfilters: Wavelengths and syntethic fluxes.
+    synthFlux: Wavelengths and syntethic fluxes.
 
     METHODS
     __init__: Initializes an instance of the class, and loads in the relevant metadata.
@@ -1797,7 +1868,7 @@ class TTS_Model(object):
         self.fill       = fill
         self.extcorr    = None
         self.filters    = {}
-        self.IntFfilters= {}
+        self.synthFlux= {}
         try:
             self.mdotstar = header['MDOTSTAR']
         except KeyError:
@@ -1987,12 +2058,12 @@ class TTS_Model(object):
         return
 
     @keyErrHandle
-    def calc_filters(self,filterspath=filterspath,obj=''):
+    def calc_filters(self,filterspath=commonpath+'Filters/',obj=''):
         """
         Calculates the synthetic fluxes for our object at several typical photometric bands (likely
         to be used for chi square analysis). It reads the transmissivity of the filters of different instruments
         and then convolves the total emission of the disk with that transmissivty. Once calculated, it
-        will be added to the IntFfilters attribute for this object. If already calculated, will overwrite.
+        will be added to the synthFlux attribute for this object. If already calculated, will overwrite.
 
         INPUTS
         obj: TTS_Obs object, from which the observed photometric bands will be used. If not provided,
@@ -2004,12 +2075,17 @@ class TTS_Model(object):
         NOTE:
         If synthetic fluxes want to be used when computing the chi square, these keywords
         need to be used when adding photometry:
-        'CVSO', 'VISTA', 'IRAC', 'MIPS', 'CANA', 'PACS', 'WISE', 'SDSS', '2MASS'
+        'CVSO', 'IRAC', 'MIPS', 'CANA', 'PACS', 'WISE', '2MASS'
 
         New instruments can be added with time. If any instrument is added,
         the instrKeylist should be updated here and in add_photometry.
         """
-
+        
+        #First check to see if there is a total component
+        if 'total' not in self.data:
+            raise ValueError("CALC_FILTERS: Model "+self.jobn+" does not have 'total' values, returning...")
+            
+        
         try:
             # If a TTS_Obs object is provided, it will calculate synthetic fluxes
             # for the instruments found in the object.
@@ -2018,7 +2094,7 @@ class TTS_Model(object):
             # If no TTS_Obs object is provided, it will calculate synthetic fluxes
             # for "all" instruments
             print('Calculating synthetic fluxes for all instruments and bands')
-            instrKeylist = ['CVSO', 'VISTA', 'IRAC','MIPS', 'CANA', 'PACS', 'WISE', 'SDSS', '2MASS']
+            instrKeylist = ['CVSO', 'IRAC','MIPS', 'CANA', 'PACS', 'WISE', '2MASS']
 
         for instrKey in instrKeylist:
             # For each instrument, it first reads the transmissivities and saves
@@ -2105,9 +2181,9 @@ class TTS_Model(object):
             intFlux = np.array(intFlux)[sortindex]
 
             # And it saves the central wavelengths and synthetic fluxes of all
-            # the bands of the instrument in the IntFfilters attribute as a
+            # the bands of the instrument in the synthFlux attribute as a
             # nested dictionary
-            self.IntFfilters[instrKey] = {'wl':wlcfilter,'lFl':intFlux}
+            self.synthFlux[instrKey] = {'wl':wlcfilter,'lFl':intFlux}
 
         return
 
@@ -2690,7 +2766,7 @@ class TTS_Obs(object):
                 self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'err': errors}
         return
 
-    def add_photometry(self, scope, wlarr, fluxarr, errors=None, ulim=0):
+    def add_photometry(self, scope, wlarr, fluxarr, errors=None, ulim=0, verbose = 1):
         """
         Adds an entry to the photometry attribute.
 
@@ -2704,7 +2780,7 @@ class TTS_Obs(object):
         NOTE:
         If synthetic fluxes want to be used when computing the chi square, these keywords
         need to be used when adding photometry:
-        'CVSO', 'VISTA', 'IRAC', 'MIPS', 'CANA', 'PACS', 'WISE', 'SDSS', '2MASS'
+        'CVSO', 'IRAC', 'MIPS', 'CANA', 'PACS', 'WISE', '2MASS'
 
         New instruments can be added with time. If any instrument is added,
         the instrKeylist should be updated.
@@ -2717,10 +2793,11 @@ class TTS_Obs(object):
             raise IOError('scope should be a string.')
 
         # Check if instrument is in list of instruments with available synthetic fluxes
-        instrKeylist = ['CVSO', 'VISTA', 'IRAC','MIPS', 'CANA', 'PACS', 'WISE', 'SDSS', '2MASS']
+        instrKeylist = ['CVSO', 'IRAC','MIPS', 'CANA', 'PACS', 'WISE', '2MASS']
         if scope not in instrKeylist:
-            print('Synthetic fluxes for instrument '+scope+' cannot be currently computed.')
-            print('Available instruments are: '+', '.join(instrKeylist))
+            if verbose:
+                print('Synthetic fluxes for instrument "'+scope+'" cannot be currently computed.')
+                print('Available instruments are: '+', '.join(instrKeylist))
 
         # Check that the wavelengths and fluxes entered make sense
         try: # If values entered are numeric, make them an array
@@ -2816,7 +2893,7 @@ class Red_Obs(TTS_Obs):
 
     """
 
-    def dered(self, Av, Av_unc, law, picklepath, flux=1, lpath=edgepath, err_prop=1, UV = 0, clob = False):
+    def dered(self, Av, Av_unc, law, picklepath, flux=1, lpath=commonpath, err_prop=1, UV = 0, clob = False):
         """
         Deredden the spectra/photometry present in the object, and then convert to TTS_Obs structure.
         This function is adapted from the IDL procedure 'dered_calc.pro' (written by Melissa McClure).
@@ -3072,7 +3149,7 @@ class Red_Obs(TTS_Obs):
                 phot_err        = phot_err * self.photometry[photKey]['wl'] * 1e-4
             except TypeError:
                 pass
-            deredObs.add_photometry(photKey, self.photometry[photKey]['wl'], phot_dered, errors=phot_err, ulim=ulimVal)
+            deredObs.add_photometry(photKey, self.photometry[photKey]['wl'], phot_dered, errors=phot_err, ulim=ulimVal, verbose = 0)
 
 
 
