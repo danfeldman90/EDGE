@@ -31,7 +31,10 @@ Written by Connor Robinson 6/20/16
 
 #Where you want the parameter file and the jobfiles to be placed
 #Also must be the location of the sample job file
-gridpath = '/Users/Connor/Desktop/Research/diad/test/'
+gridpath = '/Users/Connor/Desktop/Research/diad/test/opt/'
+
+#Location on the cluster where the jobs will be run
+clusterpath = '/projectnb/bu-disks/connorr/test/opt/'
 
 #Tag that you can add to make the parameter file identifiable for a given run
 #Can leave it blank if you don't care. 
@@ -40,17 +43,20 @@ paramfiletag = 'test'
 #What number to start counting from, must be an integer 
 jobnumstart = 1
 
+#No need to add an underscore/jobnumber, the script will do that for you.
+labelend = 'test'
+
 #Define parameters to feed into file, must be filled with at least 1 value
 #Want to check that the values for amaxs and epsilon are possible in the sample job file
 
-amax      = [1.0, 2.0]
-tstar     = [3000]
+amax      = [1.0,2.0]
+tstar     = [3700]
 rstar     = [1.9]
-dist      = [100]
+dist      = [150]
 mui       = [.82]
-rout      = [150.0]
-rin       = [100]
-tau       = [0.35]
+rout      = [4.0]
+rin       = [1.0]
+tau       = [0.05]
 power     = [1]
 fudgeorg  = [2]
 fudgetroi = [0.001]
@@ -60,8 +66,7 @@ fracforst = [0.001]
 fracamc   = [0.01]
 fracice   = [0.001]
 
-#No need to add an underscore/jobnumber, the script will do that for you.
-labelend = 'test'
+fill      = 3
 
 #***********************************************
 #Unlikly you need to change anything below here.
@@ -102,3 +107,5 @@ for i in range(len(table)):
     fracice   = table['fracice'][i],\
     labelend  = label)
     
+edge.create_runall(jobnumstart, jobnumstart + len(table)-1, clusterpath, optthin = True, outpath = gridpath, fill = fill)
+

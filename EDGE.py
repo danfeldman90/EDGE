@@ -491,7 +491,7 @@ def apparent_to_absolute(d_pc, mag):
 
 #----------------------------------------------DEPENDENT FUNCTIONS-----------------------------------------------
 # A function is considered dependent if it utilizes either the above independent functions, or the classes below.
-def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, msize=7.0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1, leg=1, public=0):
+def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, diskcomb=0, msize=7.0, xlim=[2e-1, 2e3], ylim=[1e-15, 1e-9], params=1, leg=1, public=0,odustonly = 0):
     """
     Creates a plot of a model and the observations for a given target.
 
@@ -612,69 +612,73 @@ def look(obs, model=None, jobn=None, save=0, savepath=figurepath, colkeys=None, 
             modkeys         = model.data.keys()
             if 'phot' in modkeys:
                 plt.plot(model.data['wl'], model.data['phot'], ls='--', c='b', linewidth=2.0, label='Photosphere')
-            if 'idisk' in modkeys:
-                plt.plot(model.data['wl'], model.data['idisk'], ls ='--', c = '#f8522c', linewidth = 2.0, label = 'Inner Disk')
-            if 'odisk' in modkeys:
-                plt.plot(model.data['wl'], model.data['odisk'], ls ='--', c = '#024747', linewidth = 2.0, label = 'Outer Disk')
-            if 'iwall' in modkeys:
-                if 'owall' in modkeys:
-                    label = 'Inner Wall'
-                else:
-                    label = 'Wall'
-                try:
-                    plt.plot(model.data['wl'], model.newIWall, ls='--', c='#53EB3B', linewidth=2.0, label=label)
-                except AttributeError:
-                    plt.plot(model.data['wl'], model.data['iwall'], ls='--', c='#53EB3B', linewidth=2.0, label=label)
-            if diskcomb:
-                try:
-                    diskflux     = model.newOwall + model.data['disk']
-                except AttributeError:
-                    try:
-                        diskflux = model.data['owall'] + model.data['disk']
-                    except KeyError:
-                        print('LOOK: Error, tried to combine outer wall and disk components but one component is missing!')
-                    else:
-                        plt.plot(model.data['wl'], diskflux, ls='--', c='#8B0A1E', linewidth=2.0, label='Outer Disk')
-            else:
-                try:
-                    plt.plot(model.data['wl'], model.newOWall, ls='--', c='#E9B021', linewidth=2.0, label='Outer Wall')
-                except AttributeError:
-                    if 'owall' in modkeys:
-                        plt.plot(model.data['wl'], model.data['owall'], ls='--', c='#E9B021', linewidth=2.0, label='Outer Wall')
-                if 'disk' in modkeys:
-                    plt.plot(model.data['wl'], model.data['disk'], ls='--', c='#8B0A1E', linewidth=2.0, label='Disk')
             if 'dust' in modkeys:
                 plt.plot(model.data['wl'], model.data['dust'], ls='--', c='#F80303', linewidth=2.0, label='Opt. Thin Dust')
-            if 'scatt' in modkeys:
-                plt.plot(model.data['wl'], model.data['scatt'], ls='--', c='#7A6F6F', linewidth=2.0, label='Scattered Light')
-            if 'shock' in modkeys:
-                plt.plot(model.data['WTTS']['wl'], model.data['WTTS']['lFl'], c='b', linewidth=2.0, zorder=1, label='WTTS Photosphere')
-                plt.plot(model.data['shock']['wl'], model.data['shock']['lFl'], c=colors['j'], linewidth=2.0, zorder=2, label='MagE')
-                plt.plot(model.data['shockLong']['wl'], model.data['shockLong']['lFl'], c=colors['s'], linewidth=2.0, zorder=2, label='Shock Model')
+                
+            if odustonly == False:
+                if 'idisk' in modkeys:
+                    plt.plot(model.data['wl'], model.data['idisk'], ls ='--', c = '#f8522c', linewidth = 2.0, label = 'Inner Disk')
+                if 'odisk' in modkeys:
+                    plt.plot(model.data['wl'], model.data['odisk'], ls ='--', c = '#024747', linewidth = 2.0, label = 'Outer Disk')
+                if 'iwall' in modkeys:
+                    if 'owall' in modkeys:
+                        label = 'Inner Wall'
+                    else:
+                        label = 'Wall'
+                    try:
+                        plt.plot(model.data['wl'], model.newIWall, ls='--', c='#53EB3B', linewidth=2.0, label=label)
+                    except AttributeError:
+                        plt.plot(model.data['wl'], model.data['iwall'], ls='--', c='#53EB3B', linewidth=2.0, label=label)
+                if diskcomb:
+                    try:
+                        diskflux     = model.newOwall + model.data['disk']
+                    except AttributeError:
+                        try:
+                            diskflux = model.data['owall'] + model.data['disk']
+                        except KeyError:
+                            print('LOOK: Error, tried to combine outer wall and disk components but one component is missing!')
+                        else:
+                            plt.plot(model.data['wl'], diskflux, ls='--', c='#8B0A1E', linewidth=2.0, label='Outer Disk')
+                else:
+                    try:
+                        plt.plot(model.data['wl'], model.newOWall, ls='--', c='#E9B021', linewidth=2.0, label='Outer Wall')
+                    except AttributeError:
+                        if 'owall' in modkeys:
+                            plt.plot(model.data['wl'], model.data['owall'], ls='--', c='#E9B021', linewidth=2.0, label='Outer Wall')
+                    if 'disk' in modkeys:
+                        plt.plot(model.data['wl'], model.data['disk'], ls='--', c='#8B0A1E', linewidth=2.0, label='Disk')
+                        
+                if 'scatt' in modkeys:
+                    plt.plot(model.data['wl'], model.data['scatt'], ls='--', c='#7A6F6F', linewidth=2.0, label='Scattered Light')
+                if 'shock' in modkeys:
+                    plt.plot(model.data['WTTS']['wl'], model.data['WTTS']['lFl'], c='b', linewidth=2.0, zorder=1, label='WTTS Photosphere')
+                    plt.plot(model.data['shock']['wl'], model.data['shock']['lFl'], c=colors['j'], linewidth=2.0, zorder=2, label='MagE')
+                    plt.plot(model.data['shockLong']['wl'], model.data['shockLong']['lFl'], c=colors['s'], linewidth=2.0, zorder=2, label='Shock Model')
             if 'total' in modkeys:
                 plt.plot(model.data['wl'], model.data['total'], c='k', linewidth=2.0, label='Combined Model')
     # Now, the relevant meta-data:
     if model != None:
         if params:
-            plt.figtext(0.60,0.88,'Eps = '+ str(model.eps), color='#010000', size='9')
-            plt.figtext(0.80,0.88,'Alpha = '+ str(model.alpha), color='#010000', size='9')
-            plt.figtext(0.60,0.82,'Amax = '+ str(model.amax), color='#010000', size='9')
-            plt.figtext(0.60,0.85,'Rin = '+ str(model.rin), color='#010000', size='9')
-            plt.figtext(0.80,0.85,'Rout = '+ str(model.rdisk), color='#010000', size='9')
-            plt.figtext(0.60,0.79,'Altinh = '+ str(model.wallH), color='#010000', size='9')
-            plt.figtext(0.80,0.82,'Mdot = '+ str(model.mdot), color='#010000', size='9')
-            # If we have an outer wall height:
-            try:
-                plt.figtext(0.80,0.79,'AltinhOuter = '+ str(model.owallH), color='#010000', size='9')
-            except AttributeError:
-                plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.temp), color='#010000', size='9')
-            else:
-                plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.itemp), color='#010000', size='9')
-                plt.figtext(0.80,0.76,'OWall Temp = '+ str(model.temp), color='#010000', size='9')
-            if 'idisk' in modkeys:
-                plt.figtext(0.60, 0.73, 'IDisk Rout = '+str(model.irdisk), color = '#010000', size = '9')
-                plt.figtext(0.80, 0.73, 'IDisk Jobn = '+str(model.ijobn), color = '#010000', size = '9')
-
+            if odustonly == False:
+                plt.figtext(0.60,0.88,'Eps = '+ str(model.eps), color='#010000', size='9')
+                plt.figtext(0.80,0.88,'Alpha = '+ str(model.alpha), color='#010000', size='9')
+                plt.figtext(0.60,0.82,'Amax = '+ str(model.amax), color='#010000', size='9')
+                plt.figtext(0.60,0.85,'Rin = '+ str(model.rin), color='#010000', size='9')
+                plt.figtext(0.80,0.85,'Rout = '+ str(model.rdisk), color='#010000', size='9')
+                plt.figtext(0.60,0.79,'Altinh = '+ str(model.wallH), color='#010000', size='9')
+                plt.figtext(0.80,0.82,'Mdot = '+ str(model.mdot), color='#010000', size='9')
+                # If we have an outer wall height:
+                try:
+                    plt.figtext(0.80,0.79,'AltinhOuter = '+ str(model.owallH), color='#010000', size='9')
+                except AttributeError:
+                    plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.temp), color='#010000', size='9')
+                else:
+                    plt.figtext(0.60,0.76,'IWall Temp = '+ str(model.itemp), color='#010000', size='9')
+                    plt.figtext(0.80,0.76,'OWall Temp = '+ str(model.temp), color='#010000', size='9')
+                if 'idisk' in modkeys:
+                    plt.figtext(0.60, 0.73, 'IDisk Rout = '+str(model.irdisk), color = '#010000', size = '9')
+                    plt.figtext(0.80, 0.73, 'IDisk Jobn = '+str(model.ijobn), color = '#010000', size = '9')
+             
     # Lastly, the remaining parameters to plotting (mostly aesthetics):
     plt.xscale('log')
     plt.yscale('log')
