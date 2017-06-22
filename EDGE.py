@@ -926,7 +926,7 @@ def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
         amaxwVal = kwargs['amaxw']
         
         
-        if amaxwVal != 10 and amaxVal != 100:
+        if amaxwVal != 10 and amaxwVal != 100:
             amaxwStr = str(amaxwVal)
         elif int(amaxwVal) == 10:
             amaxwStr = '10'
@@ -939,7 +939,6 @@ def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
         
         start = text[start:].find('\nset lamaxw') + start
         text = text[:start+1]+'#'+text[start+1:]
-        
         
         #Now remove the # for the selected grain size
         start = text.find("#set AMAXW='"+amaxwStr)
