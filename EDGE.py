@@ -2731,7 +2731,7 @@ class TTS_Obs(object):
         self.spec_dens = {}
         self.phot_dens = 0.0
 
-    def add_spectra(self, scope, wlarr, fluxarr, errors=None):
+    def add_spectra(self, scope, wlarr, fluxarr, errors=None, py2 = False):
         """
         Adds an entry to the spectra attribute.
 
@@ -2747,7 +2747,10 @@ class TTS_Obs(object):
             print('ADD_SPECTRA: Warning! This will overwrite current entry!')
             tries               = 1
             while tries <= 5:                                           # Give user 5 chances to choose if overwrite data or not
-                proceed         = raw_input('Proceed? (Y/N): ')         # Prompt and collect manual answer - requires Y,N,Yes,No (not case sensitive)
+                if py2:
+                    proceed         = raw_input('Proceed? (Y/N): ')         # Prompt and collect manual answer - requires Y,N,Yes,No (not case sensitive)
+                else:
+                    proceed         = input('Proceed? (Y/N): ')
                 if proceed.upper() == 'Y' or proceed.upper() == 'YES':  # If Y or Yes, overwrite file, then break out of loop
                     print('ADD_SPECTRA: Replacing entry.')
                     if errors == None:
@@ -2769,7 +2772,7 @@ class TTS_Obs(object):
                 self.spectra[scope] = {'wl': wlarr, 'lFl': fluxarr, 'err': errors}
         return
 
-    def add_photometry(self, scope, wlarr, fluxarr, errors=None, ulim=0, verbose = 1):
+    def add_photometry(self, scope, wlarr, fluxarr, errors=None, ulim=0, verbose = 1, py2 = False):
         """
         Adds an entry to the photometry attribute.
 
@@ -2825,7 +2828,10 @@ class TTS_Obs(object):
             print('ADD_PHOTOMETRY: Warning! This will overwrite current entry!')
             tries                   = 1
             while tries <= 5:                                               # Give user 5 chances to choose if overwrite data or not
-                proceed             = raw_input('Proceed? (Y/N): ')         # Prompt and collect manual answer - requires Y,N,Yes,No (not case sensitive)
+                if py2:
+                    proceed             = raw_input('Proceed? (Y/N): ')         # Prompt and collect manual answer - requires Y,N,Yes,No (not case sensitive)
+                else:
+                    proceed             = input('Proceed? (Y/N): ')
                 if proceed.upper() == 'Y' or proceed.upper() == 'YES':      # If Y or Yes, overwrite file, then break out of loop
                     print('ADD_PHOTOMETRY: Replacing entry.')
                     if errors == None:
