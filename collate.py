@@ -555,8 +555,8 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
                 hdu.header.set('NOTEMP', 1)
             
             if miss != 1 and size != 0:
-                propdatatable = ascii.read(path+propfile[0], data_start = 1)
-                rawnames = ascii.read(path+propfile[0], data_end = 1, delimiter = 'l').colnames
+                propdatatable = ascii.read(propfile[0], data_start = 1)
+                rawnames = ascii.read(propfile[0], data_end = 1, delimiter = 'l').colnames
                 
                 #Replace 'D' in the table with 'e' and convert into a numpy array the terrible brute force way
                 propdata = np.zeros([len(propdatatable[0]),len(propdatatable)])
