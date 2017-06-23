@@ -834,7 +834,7 @@ def loadPickle(name, picklepath=datapath, num=None, red=0, fill = 3, py2 = False
                 pickle          = cPickle.load(f)
                 f.close()
         
-        return pickle
+    return pickle
 
 def job_file_create(jobnum, path, fill=3, iwall=0, **kwargs):
     """
