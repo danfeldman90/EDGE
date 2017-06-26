@@ -559,7 +559,17 @@ def collate(path, jobnum, name, destination, optthin=0, clob=0, fill=3, noextinc
                 rawnames = ascii.read(propfile[0], data_end = 1, delimiter = 'l').colnames
                 
                 #Replace 'D' in the table with 'e' and convert into a numpy array the terrible brute force way
-                propdata = np.zeros([len(propdatatable[0]),len(propdatatable)])
+                try:
+                    propdata = np.zeros([len(propdatatable[0]),len(propdatatable)])
+                except:
+                    print("COLLATE: WARNING IN JOB "+jobnum+": PROP FILE FOUND, BUT APPEARS TO HAVE FAILED. ADDED 'FAILED' TAG TO HEADER. NOTEMP SET TO 1")
+                    notemp =1
+                    failed = True
+                    miss = 1
+                    hdu.header.set('NOTEMP', 1)
+            
+            if miss !=1 and size !=0:
+                
                 for i, column in enumerate(propdatatable):
                     for j, value in enumerate(column):
                         propdata[j,i] = np.float(str.replace(value, 'D', 'e'))
